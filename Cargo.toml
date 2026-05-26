@@ -1,0 +1,16 @@
+[package]
+name = "windows-inspect"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+slint = "1.16"
+sysinfo = "0.33"
+windows = { version = "0.58", features = [
+    "Win32_Foundation",
+    "Win32_NetworkManagement_IpHelper",
+    "Win32_Networking_WinSock",
+] }
+
+[build-dependencies]
+slint-build = "1.16"
