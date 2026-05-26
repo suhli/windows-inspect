@@ -7,7 +7,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::time::Duration;
 
-use net::{build_line_path, capture_tcp_snapshot, format_speed, SpeedTracker};
+use net::{build_line_path, capture_tcp_snapshot, format_speed};
+use speed::SpeedTracker;
 use slint::{ModelRc, VecModel};
 
 slint::include_modules!();

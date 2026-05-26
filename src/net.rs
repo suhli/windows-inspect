@@ -3,7 +3,7 @@ use std::mem::size_of;
 use std::net::{Ipv4Addr, Ipv6Addr};
 
 use sysinfo::{Pid, ProcessesToUpdate, System};
-use windows::Win32::Foundation::{ERROR_INSUFFICIENT_BUFFER, TRUE};
+use windows::Win32::Foundation::{BOOLEAN, ERROR_INSUFFICIENT_BUFFER};
 use windows::Win32::NetworkManagement::IpHelper::{
     GetExtendedTcpTable, GetIfTable, GetPerTcp6ConnectionEStats, GetPerTcpConnectionEStats,
     MIB_IFTABLE, MIB_TCP6ROW, MIB_TCP6ROW_OWNER_PID, MIB_TCP6TABLE_OWNER_PID,
@@ -15,7 +15,7 @@ use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6, IN6_ADDR};
 
 use crate::speed::{ConnKey, ConnSpeed, ConnectionSample, SpeedTracker};
 
-pub use crate::speed::{build_line_path, format_speed, SpeedTracker};
+pub use crate::speed::{build_line_path, format_speed};
 
 const MIB_TCP_STATE_ESTAB: u32 = 5;
 const IF_TYPE_SOFTWARE_LOOPBACK: u32 = 24;
@@ -255,7 +255,9 @@ fn read_tcp_v6_stats(
 }
 
 fn enable_tcp_v4_estats(row: &MIB_TCPROW_LH) {
-    let rw = TCP_ESTATS_DATA_RW_v0 { EnableCollection: TRUE };
+    let rw = TCP_ESTATS_DATA_RW_v0 {
+        EnableCollection: BOOLEAN(1),
+    };
     let rw_bytes = unsafe {
         std::slice::from_raw_parts(
             (&rw as *const TCP_ESTATS_DATA_RW_v0).cast::<u8>(),
@@ -268,7 +270,9 @@ fn enable_tcp_v4_estats(row: &MIB_TCPROW_LH) {
 }
 
 fn enable_tcp_v6_estats(row: &MIB_TCP6ROW) {
-    let rw = TCP_ESTATS_DATA_RW_v0 { EnableCollection: TRUE };
+    let rw = TCP_ESTATS_DATA_RW_v0 {
+        EnableCollection: BOOLEAN(1),
+    };
     let rw_bytes = unsafe {
         std::slice::from_raw_parts(
             (&rw as *const TCP_ESTATS_DATA_RW_v0).cast::<u8>(),
@@ -334,7 +338,7 @@ fn read_estats_v6(row: &MIB_TCP6ROW) -> Option<(u64, u64)> {
 
 fn owner_pid_to_tcp6_row(row: &MIB_TCP6ROW_OWNER_PID) -> MIB_TCP6ROW {
     MIB_TCP6ROW {
-        State: windows::Win32::NetworkManagement::IpHelper::MIB_TCP_STATE(row.dwState),
+        State: windows::Win32::NetworkManagement::IpHelper::MIB_TCP_STATE(row.dwState as i32),
         LocalAddr: IN6_ADDR {
             u: windows::Win32::Networking::WinSock::IN6_ADDR_0 {
                 Byte: row.ucLocalAddr,

@@ -13,7 +13,7 @@ pub struct ConnKey {
     pub is_ipv6: bool,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub struct ConnectionSample {
     pub key: ConnKey,
     pub bytes_in: u64,
@@ -87,7 +87,7 @@ impl SpeedTracker {
                         let spd_in = (din as f64 / elapsed) as u64;
                         let spd_out = (dout as f64 / elapsed) as u64;
                         per_conn.insert(
-                            key,
+                            key.clone(),
                             ConnSpeed {
                                 bytes_per_sec_in: spd_in,
                                 bytes_per_sec_out: spd_out,
