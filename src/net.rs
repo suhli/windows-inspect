@@ -13,7 +13,7 @@ use windows::Win32::NetworkManagement::IpHelper::{
 };
 use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6, IN6_ADDR};
 
-use crate::speed::{ConnKey, ConnSpeed, ConnectionSample, SpeedTracker};
+use crate::speed::{ConnKey, SpeedTracker};
 
 pub use crate::speed::{build_line_path, format_speed};
 
@@ -74,21 +74,15 @@ pub fn capture_tcp_snapshot(tracker: &mut SpeedTracker) -> Result<TcpSnapshot, S
     connections.extend(read_tcp_v6(tracker)?);
 
     let if_counters = read_interface_counters()?;
-    let samples: Vec<ConnectionSample> = connections
-        .iter()
-        .map(|c| ConnectionSample {
-            key: c.key.clone(),
-            bytes_in: c.bytes_in,
-            bytes_out: c.bytes_out,
-        })
-        .collect();
-    let (total_down_bps, total_up_bps, per_conn_speed) =
-        tracker.update(&samples, if_counters);
+    let (total_down_bps, total_up_bps) = tracker.update(if_counters);
 
     let total_count = connections.len();
-    let by_ip_port = group_by_ip_port(&connections, &per_conn_speed);
-    let by_ip_process = group_by_ip_process(&connections, &per_conn_speed)?;
-    let by_ip_port_process = group_by_ip_port_process(&connections, &per_conn_speed)?;
+    let mut group_keys = Vec::new();
+    let by_ip_port = group_by_ip_port(&connections, tracker, &mut group_keys);
+    let by_ip_process = group_by_ip_process(&connections, tracker, &mut group_keys)?;
+    let by_ip_port_process =
+        group_by_ip_port_process(&connections, tracker, &mut group_keys)?;
+    tracker.retain_groups(&group_keys);
 
     Ok(TcpSnapshot {
         total_count,
@@ -414,36 +408,38 @@ pub fn read_interface_counters() -> Result<HashMap<u32, (u32, u32)>, String> {
 
 fn group_by_ip_port(
     connections: &[TcpConnection],
-    speeds: &HashMap<ConnKey, ConnSpeed>,
+    tracker: &mut SpeedTracker,
+    group_keys: &mut Vec<String>,
 ) -> Vec<IpPortGroup> {
-    let mut counts: HashMap<(String, u16), (usize, u64, u64)> = HashMap::new();
+    let mut totals: HashMap<(String, u16), (usize, u64, u64)> = HashMap::new();
     for conn in connections {
-        let spd = speeds.get(&conn.key).copied().unwrap_or_default();
-        let entry = counts
+        let entry = totals
             .entry((conn.remote_ip.clone(), conn.remote_port))
             .or_default();
         entry.0 += 1;
-        entry.1 += spd.bytes_per_sec_in;
-        entry.2 += spd.bytes_per_sec_out;
+        entry.1 += conn.bytes_in;
+        entry.2 += conn.bytes_out;
     }
 
-    let mut groups: Vec<IpPortGroup> = counts
+    let mut groups: Vec<IpPortGroup> = totals
         .into_iter()
-        .map(|((remote_ip, remote_port), (count, down_bps, up_bps))| IpPortGroup {
-            remote_ip,
-            remote_port,
-            count,
-            down_bps,
-            up_bps,
+        .map(|((remote_ip, remote_port), (count, bytes_in, bytes_out))| {
+            let key = format!("ip_port:{remote_ip}:{remote_port}");
+            group_keys.push(key.clone());
+            let spd = tracker.group_speed(&key, bytes_in, bytes_out);
+            IpPortGroup {
+                remote_ip,
+                remote_port,
+                count,
+                down_bps: spd.bytes_per_sec_in,
+                up_bps: spd.bytes_per_sec_out,
+            }
         })
         .collect();
 
     groups.sort_by(|a, b| {
-        b.down_bps
-            .saturating_add(b.up_bps)
-            .cmp(&a.down_bps.saturating_add(a.up_bps))
-            .then_with(|| b.count.cmp(&a.count))
-            .then_with(|| a.remote_ip.cmp(&b.remote_ip))
+        a.remote_ip
+            .cmp(&b.remote_ip)
             .then_with(|| a.remote_port.cmp(&b.remote_port))
     });
     groups
@@ -451,40 +447,42 @@ fn group_by_ip_port(
 
 fn group_by_ip_process(
     connections: &[TcpConnection],
-    speeds: &HashMap<ConnKey, ConnSpeed>,
+    tracker: &mut SpeedTracker,
+    group_keys: &mut Vec<String>,
 ) -> Result<Vec<IpProcessGroup>, String> {
     let mut system = System::new();
     system.refresh_processes(ProcessesToUpdate::All, true);
 
-    let mut counts: HashMap<(String, String), (usize, u64, u64)> = HashMap::new();
+    let mut totals: HashMap<(String, String), (usize, u64, u64)> = HashMap::new();
     for conn in connections {
         let process_name = resolve_process_name(&system, conn.owning_pid);
-        let spd = speeds.get(&conn.key).copied().unwrap_or_default();
-        let entry = counts
+        let entry = totals
             .entry((conn.remote_ip.clone(), process_name))
             .or_default();
         entry.0 += 1;
-        entry.1 += spd.bytes_per_sec_in;
-        entry.2 += spd.bytes_per_sec_out;
+        entry.1 += conn.bytes_in;
+        entry.2 += conn.bytes_out;
     }
 
-    let mut groups: Vec<IpProcessGroup> = counts
+    let mut groups: Vec<IpProcessGroup> = totals
         .into_iter()
-        .map(|((remote_ip, process_name), (count, down_bps, up_bps))| IpProcessGroup {
-            remote_ip,
-            process_name,
-            count,
-            down_bps,
-            up_bps,
+        .map(|((remote_ip, process_name), (count, bytes_in, bytes_out))| {
+            let key = format!("ip_proc:{remote_ip}:{process_name}");
+            group_keys.push(key.clone());
+            let spd = tracker.group_speed(&key, bytes_in, bytes_out);
+            IpProcessGroup {
+                remote_ip,
+                process_name,
+                count,
+                down_bps: spd.bytes_per_sec_in,
+                up_bps: spd.bytes_per_sec_out,
+            }
         })
         .collect();
 
     groups.sort_by(|a, b| {
-        b.down_bps
-            .saturating_add(b.up_bps)
-            .cmp(&a.down_bps.saturating_add(a.up_bps))
-            .then_with(|| b.count.cmp(&a.count))
-            .then_with(|| a.remote_ip.cmp(&b.remote_ip))
+        a.remote_ip
+            .cmp(&b.remote_ip)
             .then_with(|| a.process_name.cmp(&b.process_name))
     });
     Ok(groups)
@@ -492,16 +490,16 @@ fn group_by_ip_process(
 
 fn group_by_ip_port_process(
     connections: &[TcpConnection],
-    speeds: &HashMap<ConnKey, ConnSpeed>,
+    tracker: &mut SpeedTracker,
+    group_keys: &mut Vec<String>,
 ) -> Result<Vec<IpPortProcessGroup>, String> {
     let mut system = System::new();
     system.refresh_processes(ProcessesToUpdate::All, true);
 
-    let mut counts: HashMap<(String, u16, String), (usize, u64, u64)> = HashMap::new();
+    let mut totals: HashMap<(String, u16, String), (usize, u64, u64)> = HashMap::new();
     for conn in connections {
         let process_name = resolve_process_name(&system, conn.owning_pid);
-        let spd = speeds.get(&conn.key).copied().unwrap_or_default();
-        let entry = counts
+        let entry = totals
             .entry((
                 conn.remote_ip.clone(),
                 conn.remote_port,
@@ -509,32 +507,30 @@ fn group_by_ip_port_process(
             ))
             .or_default();
         entry.0 += 1;
-        entry.1 += spd.bytes_per_sec_in;
-        entry.2 += spd.bytes_per_sec_out;
+        entry.1 += conn.bytes_in;
+        entry.2 += conn.bytes_out;
     }
 
-    let mut groups: Vec<IpPortProcessGroup> = counts
+    let mut groups: Vec<IpPortProcessGroup> = totals
         .into_iter()
-        .map(
-            |((remote_ip, remote_port, process_name), (count, down_bps, up_bps))| {
-                IpPortProcessGroup {
-                    remote_ip,
-                    remote_port,
-                    process_name,
-                    count,
-                    down_bps,
-                    up_bps,
-                }
-            },
-        )
+        .map(|((remote_ip, remote_port, process_name), (count, bytes_in, bytes_out))| {
+            let key = format!("ip_port_proc:{remote_ip}:{remote_port}:{process_name}");
+            group_keys.push(key.clone());
+            let spd = tracker.group_speed(&key, bytes_in, bytes_out);
+            IpPortProcessGroup {
+                remote_ip,
+                remote_port,
+                process_name,
+                count,
+                down_bps: spd.bytes_per_sec_in,
+                up_bps: spd.bytes_per_sec_out,
+            }
+        })
         .collect();
 
     groups.sort_by(|a, b| {
-        b.down_bps
-            .saturating_add(b.up_bps)
-            .cmp(&a.down_bps.saturating_add(a.up_bps))
-            .then_with(|| b.count.cmp(&a.count))
-            .then_with(|| a.remote_ip.cmp(&b.remote_ip))
+        a.remote_ip
+            .cmp(&b.remote_ip)
             .then_with(|| a.remote_port.cmp(&b.remote_port))
             .then_with(|| a.process_name.cmp(&b.process_name))
     });

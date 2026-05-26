@@ -2,8 +2,6 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 const HISTORY_LEN: usize = 60;
-/// 单次采样间隔内，单连接允许计入的最大字节增量（约 500 MB/s × 2s）
-const MAX_CONN_DELTA_PER_SAMPLE: u64 = 1_000_000_000;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConnKey {
@@ -13,13 +11,6 @@ pub struct ConnKey {
     pub remote_port: u16,
     pub owning_pid: u32,
     pub is_ipv6: bool,
-}
-
-#[derive(Clone, Debug)]
-pub struct ConnectionSample {
-    pub key: ConnKey,
-    pub bytes_in: u64,
-    pub bytes_out: u64,
 }
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -36,8 +27,9 @@ pub struct ConnSpeed {
 
 pub struct SpeedTracker {
     last_poll: Option<Instant>,
-    conn_samples: HashMap<ConnKey, ByteSample>,
+    last_elapsed: f64,
     if_counters: HashMap<u32, (u32, u32)>,
+    group_samples: HashMap<String, ByteSample>,
     estats_enabled: HashMap<ConnKey, ()>,
     download_history: Vec<f32>,
     upload_history: Vec<f32>,
@@ -47,8 +39,9 @@ impl SpeedTracker {
     pub fn new() -> Self {
         Self {
             last_poll: None,
-            conn_samples: HashMap::new(),
+            last_elapsed: 0.0,
             if_counters: HashMap::new(),
+            group_samples: HashMap::new(),
             estats_enabled: HashMap::new(),
             download_history: Vec::with_capacity(HISTORY_LEN),
             upload_history: Vec::with_capacity(HISTORY_LEN),
@@ -63,69 +56,63 @@ impl SpeedTracker {
         &self.upload_history
     }
 
-    pub fn update(
-        &mut self,
-        connections: &[ConnectionSample],
-        if_counters: HashMap<u32, (u32, u32)>,
-    ) -> (u64, u64, HashMap<ConnKey, ConnSpeed>) {
+    pub fn update(&mut self, if_counters: HashMap<u32, (u32, u32)>) -> (u64, u64) {
         let now = Instant::now();
-        let mut per_conn = HashMap::new();
         let mut total_down = 0u64;
         let mut total_up = 0u64;
 
         if let Some(prev_time) = self.last_poll {
             let elapsed = now.duration_since(prev_time).as_secs_f64();
+            self.last_elapsed = elapsed;
             if elapsed > 0.05 {
-                for conn in connections {
-                    let key = conn.key.clone();
-                    let current = ByteSample {
-                        bytes_in: conn.bytes_in,
-                        bytes_out: conn.bytes_out,
-                    };
-
-                    if let Some(prev) = self.conn_samples.get(&key) {
-                        if prev.bytes_in > 0 || prev.bytes_out > 0 {
-                            let din = counter_delta(prev.bytes_in, current.bytes_in);
-                            let dout = counter_delta(prev.bytes_out, current.bytes_out);
-                            let spd_in = ((din as f64 / elapsed) as u64).min(MAX_CONN_DELTA_PER_SAMPLE);
-                            let spd_out =
-                                ((dout as f64 / elapsed) as u64).min(MAX_CONN_DELTA_PER_SAMPLE);
-                            per_conn.insert(
-                                key.clone(),
-                                ConnSpeed {
-                                    bytes_per_sec_in: spd_in,
-                                    bytes_per_sec_out: spd_out,
-                                },
-                            );
-                        }
-                    }
-
-                    self.conn_samples.insert(key, current);
-                }
-
-                self.conn_samples
-                    .retain(|k, _| connections.iter().any(|c| c.key == *k));
-
                 let (if_down, if_up) = interface_speed(&self.if_counters, &if_counters, elapsed);
                 total_down = if_down;
                 total_up = if_up;
                 self.push_history(if_down as f32, if_up as f32);
             }
         } else {
-            for conn in connections {
-                self.conn_samples.insert(
-                    conn.key.clone(),
-                    ByteSample {
-                        bytes_in: conn.bytes_in,
-                        bytes_out: conn.bytes_out,
-                    },
-                );
-            }
+            self.last_elapsed = 0.0;
         }
 
         self.last_poll = Some(now);
         self.if_counters = if_counters;
-        (total_down, total_up, per_conn)
+        (total_down, total_up)
+    }
+
+    /// 对分组内连接的字节计数器求和后，再计算速率（避免逐连接相加导致虚高）
+    pub fn group_speed(&mut self, key: &str, bytes_in: u64, bytes_out: u64) -> ConnSpeed {
+        let current = ByteSample {
+            bytes_in,
+            bytes_out,
+        };
+
+        let speed = if self.last_elapsed > 0.05 {
+            if let Some(prev) = self.group_samples.get(key) {
+                if prev.bytes_in > 0 || prev.bytes_out > 0 {
+                    let din = counter_delta(prev.bytes_in, current.bytes_in);
+                    let dout = counter_delta(prev.bytes_out, current.bytes_out);
+                    ConnSpeed {
+                        bytes_per_sec_in: (din as f64 / self.last_elapsed) as u64,
+                        bytes_per_sec_out: (dout as f64 / self.last_elapsed) as u64,
+                    }
+                } else {
+                    ConnSpeed::default()
+                }
+            } else {
+                ConnSpeed::default()
+            }
+        } else {
+            ConnSpeed::default()
+        };
+
+        self.group_samples.insert(key.to_string(), current);
+        speed
+    }
+
+    pub fn retain_groups(&mut self, active_keys: &[String]) {
+        let active: std::collections::HashSet<&str> =
+            active_keys.iter().map(String::as_str).collect();
+        self.group_samples.retain(|k, _| active.contains(k.as_str()));
     }
 
     pub fn mark_estats_enabled(&mut self, key: ConnKey) {
@@ -150,7 +137,6 @@ fn counter_delta(prev: u64, curr: u64) -> u64 {
     if curr >= prev {
         curr - prev
     } else {
-        // 计数器重置或回绕：忽略本次增量
         0
     }
 }

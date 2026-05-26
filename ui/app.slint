@@ -48,36 +48,64 @@ component StatCard inherits Rectangle {
     }
 }
 
-component ColIp inherits Rectangle {
-    in property <string> cell-text;
-    in property <bool> is-header: false;
-    width: 210px;
+component FlexCell inherits Rectangle {
+    in property <string> text;
+    in property <bool> header: false;
+    in property <bool> align-left: false;
+    in property <brush> color: #e2e8f0;
+    in property <int> stretch: 1;
+    horizontal-stretch: root.stretch;
+
     Text {
-        text: root.cell-text;
-        color: root.is-header ? #cbd5e1 : #e2e8f0;
+        width: parent.width;
+        text: root.text;
+        color: root.header ? #cbd5e1 : root.color;
         font-size: 12px;
-        font-weight: root.is-header ? 600 : 400;
+        font-weight: root.header ? 600 : 400;
+        horizontal-alignment: root.align-left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
         vertical-alignment: center;
-        x: 8px;
         overflow: elide;
+        x: root.align-left ? 8px : 0;
     }
 }
 
-component ColCenter inherits Rectangle {
-    in property <string> cell-text;
-    in property <length> cell-width;
-    in property <bool> is-header: false;
-    in property <brush> cell-color: #e2e8f0;
-    width: root.cell-width;
-    Text {
-        text: root.cell-text;
-        color: root.is-header ? #cbd5e1 : root.cell-color;
-        font-size: 12px;
-        font-weight: root.is-header ? 600 : 400;
-        horizontal-alignment: center;
-        vertical-alignment: center;
-        overflow: elide;
-    }
+component FiveColRow inherits HorizontalBox {
+    width: 100%;
+    padding-left: 8px;
+    padding-right: 8px;
+    in property <string> t1;
+    in property <string> t2;
+    in property <string> t3;
+    in property <string> t4;
+    in property <string> t5;
+    in property <bool> header: false;
+    in property <int> w2: 1;
+
+    FlexCell { text: root.t1; header: root.header; align-left: true; stretch: 4; }
+    FlexCell { text: root.t2; header: root.header; stretch: root.w2; }
+    FlexCell { text: root.t3; header: root.header; stretch: 1; }
+    FlexCell { text: root.t4; header: root.header; color: #38bdf8; stretch: 2; }
+    FlexCell { text: root.t5; header: root.header; color: #34d399; stretch: 2; }
+}
+
+component SixColRow inherits HorizontalBox {
+    width: 100%;
+    padding-left: 8px;
+    padding-right: 8px;
+    in property <string> t1;
+    in property <string> t2;
+    in property <string> t3;
+    in property <string> t4;
+    in property <string> t5;
+    in property <string> t6;
+    in property <bool> header: false;
+
+    FlexCell { text: root.t1; header: root.header; align-left: true; stretch: 4; }
+    FlexCell { text: root.t2; header: root.header; stretch: 1; }
+    FlexCell { text: root.t3; header: root.header; stretch: 3; }
+    FlexCell { text: root.t4; header: root.header; stretch: 1; }
+    FlexCell { text: root.t5; header: root.header; color: #38bdf8; stretch: 2; }
+    FlexCell { text: root.t6; header: root.header; color: #34d399; stretch: 2; }
 }
 
 component FiveColHeader inherits Rectangle {
@@ -86,17 +114,18 @@ component FiveColHeader inherits Rectangle {
     in property <string> c3;
     in property <string> c4;
     in property <string> c5;
-    in property <length> col2-width: 58px;
+    in property <int> w2: 1;
     height: 40px;
     background: #1e293b;
 
-    HorizontalBox {
-        padding-left: 8px;
-        ColIp { cell-text: root.c1; is-header: true; }
-        ColCenter { cell-text: root.c2; cell-width: root.col2-width; is-header: true; }
-        ColCenter { cell-text: root.c3; cell-width: 52px; is-header: true; }
-        ColCenter { cell-text: root.c4; cell-width: 96px; is-header: true; cell-color: #38bdf8; }
-        ColCenter { cell-text: root.c5; cell-width: 96px; is-header: true; cell-color: #34d399; }
+    FiveColRow {
+        header: true;
+        w2: root.w2;
+        t1: root.c1;
+        t2: root.c2;
+        t3: root.c3;
+        t4: root.c4;
+        t5: root.c5;
     }
 }
 
@@ -110,14 +139,14 @@ component SixColHeader inherits Rectangle {
     height: 40px;
     background: #1e293b;
 
-    HorizontalBox {
-        padding-left: 8px;
-        ColIp { cell-text: root.c1; is-header: true; }
-        ColCenter { cell-text: root.c2; cell-width: 52px; is-header: true; }
-        ColCenter { cell-text: root.c3; cell-width: 120px; is-header: true; }
-        ColCenter { cell-text: root.c4; cell-width: 52px; is-header: true; }
-        ColCenter { cell-text: root.c5; cell-width: 92px; is-header: true; cell-color: #38bdf8; }
-        ColCenter { cell-text: root.c6; cell-width: 92px; is-header: true; cell-color: #34d399; }
+    SixColRow {
+        header: true;
+        t1: root.c1;
+        t2: root.c2;
+        t3: root.c3;
+        t4: root.c4;
+        t5: root.c5;
+        t6: root.c6;
     }
 }
 
@@ -195,28 +224,30 @@ component IpPortTab inherits Rectangle {
     border-radius: 8px;
 
     VerticalBox {
+        width: 100%;
         padding: 0;
         FiveColHeader {
+            width: 100%;
             c1: "目标 IP";
             c2: "端口";
             c3: "连接数";
             c4: "下载";
             c5: "上传";
-            col2-width: 58px;
         }
         ListView {
+            width: 100%;
             vertical-stretch: 1;
             for row[i] in root.rows: Rectangle {
+                width: 100%;
                 height: 36px;
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
-                HorizontalBox {
-                    padding-left: 8px;
-                    ColIp { cell-text: row.remote-ip; }
-                    ColCenter { cell-text: row.remote-port; cell-width: 58px; }
-                    ColCenter { cell-text: row.count; cell-width: 52px; }
-                    ColCenter { cell-text: row.down-speed; cell-width: 96px; cell-color: #38bdf8; }
-                    ColCenter { cell-text: row.up-speed; cell-width: 96px; cell-color: #34d399; }
+                FiveColRow {
+                    t1: row.remote-ip;
+                    t2: row.remote-port;
+                    t3: row.count;
+                    t4: row.down-speed;
+                    t5: row.up-speed;
                 }
             }
         }
@@ -229,8 +260,10 @@ component IpPortProcessTab inherits Rectangle {
     border-radius: 8px;
 
     VerticalBox {
+        width: 100%;
         padding: 0;
         SixColHeader {
+            width: 100%;
             c1: "目标 IP";
             c2: "端口";
             c3: "进程";
@@ -239,19 +272,20 @@ component IpPortProcessTab inherits Rectangle {
             c6: "上传";
         }
         ListView {
+            width: 100%;
             vertical-stretch: 1;
             for row[i] in root.rows: Rectangle {
+                width: 100%;
                 height: 36px;
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
-                HorizontalBox {
-                    padding-left: 8px;
-                    ColIp { cell-text: row.remote-ip; }
-                    ColCenter { cell-text: row.remote-port; cell-width: 52px; }
-                    ColCenter { cell-text: row.process-name; cell-width: 120px; }
-                    ColCenter { cell-text: row.count; cell-width: 52px; }
-                    ColCenter { cell-text: row.down-speed; cell-width: 92px; cell-color: #38bdf8; }
-                    ColCenter { cell-text: row.up-speed; cell-width: 92px; cell-color: #34d399; }
+                SixColRow {
+                    t1: row.remote-ip;
+                    t2: row.remote-port;
+                    t3: row.process-name;
+                    t4: row.count;
+                    t5: row.down-speed;
+                    t6: row.up-speed;
                 }
             }
         }
@@ -264,28 +298,32 @@ component IpProcessTab inherits Rectangle {
     border-radius: 8px;
 
     VerticalBox {
+        width: 100%;
         padding: 0;
         FiveColHeader {
+            width: 100%;
             c1: "目标 IP";
             c2: "进程";
             c3: "连接数";
             c4: "下载";
             c5: "上传";
-            col2-width: 150px;
+            w2: 3;
         }
         ListView {
+            width: 100%;
             vertical-stretch: 1;
             for row[i] in root.rows: Rectangle {
+                width: 100%;
                 height: 36px;
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
-                HorizontalBox {
-                    padding-left: 8px;
-                    ColIp { cell-text: row.remote-ip; }
-                    ColCenter { cell-text: row.process-name; cell-width: 150px; }
-                    ColCenter { cell-text: row.count; cell-width: 52px; }
-                    ColCenter { cell-text: row.down-speed; cell-width: 96px; cell-color: #38bdf8; }
-                    ColCenter { cell-text: row.up-speed; cell-width: 96px; cell-color: #34d399; }
+                FiveColRow {
+                    w2: 3;
+                    t1: row.remote-ip;
+                    t2: row.process-name;
+                    t3: row.count;
+                    t4: row.down-speed;
+                    t5: row.up-speed;
                 }
             }
         }
@@ -296,6 +334,8 @@ export component MainWindow inherits Window {
     title: "Windows TCP 网络监控";
     preferred-width: 960px;
     preferred-height: 780px;
+    min-width: 720px;
+    min-height: 560px;
     background: #020617;
 
     in property <int> total-count: 0;
@@ -312,6 +352,7 @@ export component MainWindow inherits Window {
     callback refresh-requested();
 
     VerticalBox {
+        width: 100%;
         padding: 20px;
         spacing: 14px;
 
@@ -365,6 +406,7 @@ export component MainWindow inherits Window {
         }
 
         LineChartPanel {
+            width: 100%;
             download-path: root.download-path;
             upload-path: root.upload-path;
             down-label: "下载 " + root.total-down-speed;
@@ -392,11 +434,13 @@ export component MainWindow inherits Window {
         }
 
         TabWidget {
+            width: 100%;
             vertical-stretch: 1;
 
             Tab {
                 title: "按目标 IP + 端口";
                 IpPortTab {
+                    width: 100%;
                     rows: root.ip-port-rows;
                 }
             }
@@ -404,6 +448,7 @@ export component MainWindow inherits Window {
             Tab {
                 title: "按目标 IP + 进程";
                 IpProcessTab {
+                    width: 100%;
                     rows: root.ip-process-rows;
                 }
             }
@@ -411,6 +456,7 @@ export component MainWindow inherits Window {
             Tab {
                 title: "按 IP + 端口 + 进程";
                 IpPortProcessTab {
+                    width: 100%;
                     rows: root.ip-port-process-rows;
                 }
             }
