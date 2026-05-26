@@ -45,6 +45,12 @@ cargo build --release
 
 首次构建会编译 Slint UI 并嵌入 `assets/icon.png` 为 exe 图标，耗时可能稍长。
 
+### 下载预编译版本
+
+推送到 `main` 分支后，GitHub Actions 会自动构建并发布 [Release](https://github.com/suhli/windows-inspect/releases)。标签按语义化版本自增（`v0.1.0` → `v0.1.1` → …），可在 Releases 页面下载 `windows-inspect-<version>-x86_64-pc-windows-msvc.exe`。
+
+也可在 GitHub 仓库 **Actions → Release → Run workflow** 手动触发构建。
+
 > 若未以管理员身份启动，ETW 可能无法开启，表格中的分组速率会不可用，状态栏会提示相关信息。
 
 ## 使用说明
@@ -86,6 +92,7 @@ windows-inspect/
 │   └── titlebar.rs           # 标题栏样式、透明度、悬浮拖动
 ├── build.rs                  # Slint 编译、exe 图标嵌入
 ├── windows-inspect.exe.manifest  # 管理员权限清单
+├── .github/workflows/release.yml # CI：构建、打标签、发布 Release
 └── Cargo.toml
 ```
 
