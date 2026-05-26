@@ -58,13 +58,14 @@ component FlexCell inherits Rectangle {
     in property <bool> sort-ascending: true;
     callback clicked();
     horizontal-stretch: root.stretch;
+    height: 100%;
 
     TouchArea {
         enabled: root.header;
         clicked => { root.clicked(); }
     }
 
-    if root.header: HorizontalBox {
+    HorizontalBox {
         width: parent.width;
         height: parent.height;
         spacing: 4px;
@@ -73,14 +74,16 @@ component FlexCell inherits Rectangle {
 
         Text {
             text: root.text;
-            color: root.sort-active ? #f8fafc : #cbd5e1;
+            color: root.header ? (root.sort-active ? #f8fafc : #cbd5e1) : root.text-color;
             font-size: 12px;
-            font-weight: 600;
+            font-weight: root.header ? 600 : 400;
             vertical-alignment: center;
             overflow: elide;
+            horizontal-stretch: root.align-left ? 1 : 0;
+            horizontal-alignment: root.align-left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
         }
 
-        if root.sort-active: Text {
+        if root.header && root.sort-active: Text {
             text: root.sort-ascending ? "▲" : "▼";
             color: #38bdf8;
             font-size: 10px;
@@ -88,24 +91,14 @@ component FlexCell inherits Rectangle {
             vertical-alignment: center;
         }
     }
-
-    if !root.header: Text {
-        width: parent.width;
-        text: root.text;
-        color: root.text-color;
-        font-size: 12px;
-        font-weight: 400;
-        horizontal-alignment: root.align-left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
-        vertical-alignment: center;
-        overflow: elide;
-        x: root.align-left ? 8px : 0;
-    }
 }
 
 component FiveColRow inherits HorizontalBox {
     width: 100%;
+    height: 100%;
     padding-left: 8px;
     padding-right: 8px;
+    alignment: center;
     in property <string> t1;
     in property <string> t2;
     in property <string> t3;
@@ -151,8 +144,10 @@ component FiveColRow inherits HorizontalBox {
 
 component SixColRow inherits HorizontalBox {
     width: 100%;
+    height: 100%;
     padding-left: 8px;
     padding-right: 8px;
+    alignment: center;
     in property <string> t1;
     in property <string> t2;
     in property <string> t3;
@@ -219,6 +214,8 @@ component FiveColHeader inherits Rectangle {
     background: #1e293b;
 
     FiveColRow {
+        width: 100%;
+        height: 100%;
         header: true;
         w2: root.w2;
         t1: root.c1;
@@ -249,6 +246,8 @@ component SixColHeader inherits Rectangle {
     background: #1e293b;
 
     SixColRow {
+        width: 100%;
+        height: 100%;
         header: true;
         t1: root.c1;
         t2: root.c2;
@@ -364,6 +363,8 @@ component IpPortTab inherits Rectangle {
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
                 FiveColRow {
+                    width: 100%;
+                    height: 100%;
                     t1: row.remote-ip;
                     t2: row.remote-port;
                     t3: row.count;
@@ -410,6 +411,8 @@ component IpPortProcessTab inherits Rectangle {
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
                 SixColRow {
+                    width: 100%;
+                    height: 100%;
                     t1: row.remote-ip;
                     t2: row.remote-port;
                     t3: row.process-name;
@@ -457,6 +460,8 @@ component IpProcessTab inherits Rectangle {
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
                 FiveColRow {
+                    width: 100%;
+                    height: 100%;
                     w2: 3;
                     t1: row.remote-ip;
                     t2: row.process-name;
