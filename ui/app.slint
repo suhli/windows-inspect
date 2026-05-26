@@ -52,14 +52,14 @@ component FlexCell inherits Rectangle {
     in property <string> text;
     in property <bool> header: false;
     in property <bool> align-left: false;
-    in property <brush> color: #e2e8f0;
+    in property <brush> text-color: #e2e8f0;
     in property <int> stretch: 1;
     horizontal-stretch: root.stretch;
 
     Text {
         width: parent.width;
         text: root.text;
-        color: root.header ? #cbd5e1 : root.color;
+        color: root.header ? #cbd5e1 : root.text-color;
         font-size: 12px;
         font-weight: root.header ? 600 : 400;
         horizontal-alignment: root.align-left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
@@ -84,8 +84,8 @@ component FiveColRow inherits HorizontalBox {
     FlexCell { text: root.t1; header: root.header; align-left: true; stretch: 4; }
     FlexCell { text: root.t2; header: root.header; stretch: root.w2; }
     FlexCell { text: root.t3; header: root.header; stretch: 1; }
-    FlexCell { text: root.t4; header: root.header; color: #38bdf8; stretch: 2; }
-    FlexCell { text: root.t5; header: root.header; color: #34d399; stretch: 2; }
+    FlexCell { text: root.t4; header: root.header; text-color: #38bdf8; stretch: 2; }
+    FlexCell { text: root.t5; header: root.header; text-color: #34d399; stretch: 2; }
 }
 
 component SixColRow inherits HorizontalBox {
@@ -104,8 +104,8 @@ component SixColRow inherits HorizontalBox {
     FlexCell { text: root.t2; header: root.header; stretch: 1; }
     FlexCell { text: root.t3; header: root.header; stretch: 3; }
     FlexCell { text: root.t4; header: root.header; stretch: 1; }
-    FlexCell { text: root.t5; header: root.header; color: #38bdf8; stretch: 2; }
-    FlexCell { text: root.t6; header: root.header; color: #34d399; stretch: 2; }
+    FlexCell { text: root.t5; header: root.header; text-color: #38bdf8; stretch: 2; }
+    FlexCell { text: root.t6; header: root.header; text-color: #34d399; stretch: 2; }
 }
 
 component FiveColHeader inherits Rectangle {
