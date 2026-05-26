@@ -16,6 +16,15 @@ export struct IpProcessRow {
     up-speed: string,
 }
 
+export struct IpPortProcessRow {
+    remote-ip: string,
+    remote-port: int,
+    process-name: string,
+    count: int,
+    down-speed: string,
+    up-speed: string,
+}
+
 component StatCard inherits Rectangle {
     in property <string> label;
     in property <string> value;
@@ -252,6 +261,174 @@ component IpPortTab inherits Rectangle {
     }
 }
 
+component TableHeader6 inherits Rectangle {
+    in property <string> col1;
+    in property <string> col2;
+    in property <string> col3;
+    in property <string> col4;
+    in property <string> col5;
+    in property <string> col6;
+    height: 40px;
+    background: #1e293b;
+
+    HorizontalBox {
+        Rectangle {
+            horizontal-stretch: 2;
+            Text {
+                text: root.col1;
+                color: #cbd5e1;
+                font-size: 12px;
+                font-weight: 600;
+                vertical-alignment: center;
+                x: 12px;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            Text {
+                text: root.col2;
+                color: #cbd5e1;
+                font-size: 12px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            Text {
+                text: root.col3;
+                color: #cbd5e1;
+                font-size: 12px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            Text {
+                text: root.col4;
+                color: #cbd5e1;
+                font-size: 12px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            Text {
+                text: root.col5;
+                color: #38bdf8;
+                font-size: 12px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            Text {
+                text: root.col6;
+                color: #34d399;
+                font-size: 12px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+component IpPortProcessTab inherits Rectangle {
+    in property <[IpPortProcessRow]> rows;
+    background: #0f172a;
+    border-radius: 8px;
+
+    VerticalBox {
+        padding: 0;
+        TableHeader6 {
+            col1: "目标 IP";
+            col2: "端口";
+            col3: "进程";
+            col4: "连接数";
+            col5: "下载";
+            col6: "上传";
+        }
+        ListView {
+            vertical-stretch: 1;
+            for row[i] in root.rows: Rectangle {
+                height: 36px;
+                background: mod(i, 2) == 0 ? #0f172a : #111827;
+
+                HorizontalBox {
+                    Rectangle {
+                        horizontal-stretch: 2;
+                        Text {
+                            text: row.remote-ip;
+                            color: #e2e8f0;
+                            font-size: 12px;
+                            vertical-alignment: center;
+                            x: 12px;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.remote-port;
+                            color: #e2e8f0;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.process-name;
+                            color: #e2e8f0;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.count;
+                            color: #e2e8f0;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.down-speed;
+                            color: #38bdf8;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.up-speed;
+                            color: #34d399;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 component IpProcessTab inherits Rectangle {
     in property <[IpProcessRow]> rows;
     background: #0f172a;
@@ -340,6 +517,7 @@ export component MainWindow inherits Window {
     in property <string> total-up-speed: "0 B/s";
     in property <[IpPortRow]> ip-port-rows: [];
     in property <[IpProcessRow]> ip-process-rows: [];
+    in property <[IpPortProcessRow]> ip-port-process-rows: [];
     in property <string> download-path: "";
     in property <string> upload-path: "";
     in property <string> status-text: "正在加载…";
@@ -441,6 +619,13 @@ export component MainWindow inherits Window {
                 title: "按目标 IP + 进程";
                 IpProcessTab {
                     rows: root.ip-process-rows;
+                }
+            }
+
+            Tab {
+                title: "按 IP + 端口 + 进程";
+                IpPortProcessTab {
+                    rows: root.ip-port-process-rows;
                 }
             }
         }
