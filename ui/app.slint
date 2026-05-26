@@ -63,21 +63,29 @@ component FlexCell inherits Rectangle {
         ? root.text + (root.sort-ascending ? " ▲" : " ▼")
         : root.text;
 
-    TouchArea {
-        enabled: root.header;
-        clicked => { root.clicked(); }
-    }
-
-    Text {
+    cell-touch := TouchArea {
         width: parent.width;
-        text: root.display-text;
-        color: root.header ? (root.sort-active ? #f8fafc : #cbd5e1) : root.text-color;
-        font-size: 12px;
-        font-weight: root.header ? 600 : 400;
-        horizontal-alignment: root.align-left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
-        vertical-alignment: center;
-        overflow: elide;
-        x: root.align-left ? 8px : 0;
+        height: parent.height;
+        enabled: root.header;
+        pointer-event(event) => {
+            if (root.header
+                && event.button == PointerEventButton.left
+                && event.kind == PointerEventKind.down) {
+                root.clicked();
+            }
+        }
+
+        Text {
+            width: parent.width;
+            text: root.display-text;
+            color: root.header ? (root.sort-active ? #f8fafc : #cbd5e1) : root.text-color;
+            font-size: 12px;
+            font-weight: root.header ? 600 : 400;
+            horizontal-alignment: root.align-left ? TextHorizontalAlignment.left : TextHorizontalAlignment.center;
+            vertical-alignment: center;
+            overflow: elide;
+            x: root.align-left ? 8px : 0;
+        }
     }
 }
 
@@ -204,6 +212,7 @@ component FiveColHeader inherits Rectangle {
 
         FiveColRow {
             width: 100%;
+            height: parent.height;
             header: true;
             w2: root.w2;
             t1: root.c1;
@@ -241,6 +250,7 @@ component SixColHeader inherits Rectangle {
 
         SixColRow {
             width: 100%;
+            height: parent.height;
             header: true;
             t1: root.c1;
             t2: root.c2;
@@ -523,13 +533,52 @@ export component MainWindow inherits Window {
                 }
             }
 
-            HorizontalBox {
-                spacing: 8px;
+            VerticalBox {
+                spacing: 6px;
                 alignment: end;
+
+                HorizontalBox {
+                    spacing: 8px;
+                    alignment: end;
+
+                    Rectangle {
+                        width: root.overlay-mode ? 96px : 88px;
+                        height: 36px;
+                        background: overlay-touch.has-hover ? #6d28d9 : #7c3aed;
+                        border-radius: 6px;
+                        overlay-touch := TouchArea {
+                            clicked => { root.overlay-toggle-requested(); }
+                        }
+                        Text {
+                            text: root.overlay-mode ? "退出悬浮" : "悬浮";
+                            color: #ffffff;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    Rectangle {
+                        width: 88px;
+                        height: 36px;
+                        background: refresh-touch.has-hover ? #0284c7 : #0ea5e9;
+                        border-radius: 6px;
+                        refresh-touch := TouchArea {
+                            clicked => { root.refresh-requested(); }
+                        }
+                        Text {
+                            text: "刷新";
+                            color: #ffffff;
+                            font-size: 14px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
 
                 if root.overlay-mode: HorizontalBox {
                     spacing: 8px;
-                    alignment: center;
+                    alignment: end;
 
                     Text {
                         text: "透明度";
@@ -555,40 +604,6 @@ export component MainWindow inherits Window {
                         font-size: 12px;
                         vertical-alignment: center;
                         min-width: 36px;
-                    }
-                }
-
-                Rectangle {
-                    width: root.overlay-mode ? 96px : 88px;
-                    height: 36px;
-                    background: overlay-touch.has-hover ? #6d28d9 : #7c3aed;
-                    border-radius: 6px;
-                    overlay-touch := TouchArea {
-                        clicked => { root.overlay-toggle-requested(); }
-                    }
-                    Text {
-                        text: root.overlay-mode ? "退出悬浮" : "悬浮";
-                        color: #ffffff;
-                        font-size: 14px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
-                    }
-                }
-
-                Rectangle {
-                    width: 88px;
-                    height: 36px;
-                    background: refresh-touch.has-hover ? #0284c7 : #0ea5e9;
-                    border-radius: 6px;
-                    refresh-touch := TouchArea {
-                        clicked => { root.refresh-requested(); }
-                    }
-                    Text {
-                        text: "刷新";
-                        color: #ffffff;
-                        font-size: 14px;
-                        horizontal-alignment: center;
-                        vertical-alignment: center;
                     }
                 }
             }
