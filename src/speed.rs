@@ -79,8 +79,16 @@ impl SpeedTracker {
         (total_down, total_up)
     }
 
-    /// 对分组内连接的字节计数器求和后，再计算速率（避免逐连接相加导致虚高）
-    pub fn group_speed(&mut self, key: &str, bytes_in: u64, bytes_out: u64) -> ConnSpeed {
+    /// 对分组内连接的字节计数器求和后，再计算速率（避免逐连接相加导致虚高）。
+    /// Windows EStats 在某些连接上会返回未定义计数，超过整机网卡总速率的值直接丢弃。
+    pub fn group_speed(
+        &mut self,
+        key: &str,
+        bytes_in: u64,
+        bytes_out: u64,
+        max_in_bps: u64,
+        max_out_bps: u64,
+    ) -> ConnSpeed {
         let current = ByteSample {
             bytes_in,
             bytes_out,
@@ -91,9 +99,11 @@ impl SpeedTracker {
                 if prev.bytes_in > 0 || prev.bytes_out > 0 {
                     let din = counter_delta(prev.bytes_in, current.bytes_in);
                     let dout = counter_delta(prev.bytes_out, current.bytes_out);
+                    let in_bps = (din as f64 / self.last_elapsed) as u64;
+                    let out_bps = (dout as f64 / self.last_elapsed) as u64;
                     ConnSpeed {
-                        bytes_per_sec_in: (din as f64 / self.last_elapsed) as u64,
-                        bytes_per_sec_out: (dout as f64 / self.last_elapsed) as u64,
+                        bytes_per_sec_in: if in_bps <= max_in_bps { in_bps } else { 0 },
+                        bytes_per_sec_out: if out_bps <= max_out_bps { out_bps } else { 0 },
                     }
                 } else {
                     ConnSpeed::default()

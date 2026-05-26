@@ -13,6 +13,7 @@ use windows::Win32::NetworkManagement::IpHelper::{
 };
 use windows::Win32::Networking::WinSock::{AF_INET, AF_INET6, IN6_ADDR};
 
+use crate::etw::{EtwTrafficSnapshot, TrafficKey};
 use crate::speed::{ConnKey, SpeedTracker};
 
 pub use crate::speed::{build_line_path, format_speed};
@@ -68,7 +69,10 @@ pub struct TcpSnapshot {
     pub by_ip_port_process: Vec<IpPortProcessGroup>,
 }
 
-pub fn capture_tcp_snapshot(tracker: &mut SpeedTracker) -> Result<TcpSnapshot, String> {
+pub fn capture_tcp_snapshot(
+    tracker: &mut SpeedTracker,
+    etw: &EtwTrafficSnapshot,
+) -> Result<TcpSnapshot, String> {
     let mut connections = Vec::new();
     connections.extend(read_tcp_v4(tracker)?);
     connections.extend(read_tcp_v6(tracker)?);
@@ -78,10 +82,31 @@ pub fn capture_tcp_snapshot(tracker: &mut SpeedTracker) -> Result<TcpSnapshot, S
 
     let total_count = connections.len();
     let mut group_keys = Vec::new();
-    let by_ip_port = group_by_ip_port(&connections, tracker, &mut group_keys);
-    let by_ip_process = group_by_ip_process(&connections, tracker, &mut group_keys)?;
+    let by_ip_port = group_by_ip_port(
+        &connections,
+        etw,
+        tracker,
+        &mut group_keys,
+        total_down_bps,
+        total_up_bps,
+    );
+    let by_ip_process = group_by_ip_process(
+        &connections,
+        etw,
+        tracker,
+        &mut group_keys,
+        total_down_bps,
+        total_up_bps,
+    )?;
     let by_ip_port_process =
-        group_by_ip_port_process(&connections, tracker, &mut group_keys)?;
+        group_by_ip_port_process(
+            &connections,
+            etw,
+            tracker,
+            &mut group_keys,
+            total_down_bps,
+            total_up_bps,
+        )?;
     tracker.retain_groups(&group_keys);
 
     Ok(TcpSnapshot {
@@ -408,17 +433,21 @@ pub fn read_interface_counters() -> Result<HashMap<u32, (u32, u32)>, String> {
 
 fn group_by_ip_port(
     connections: &[TcpConnection],
+    etw: &EtwTrafficSnapshot,
     tracker: &mut SpeedTracker,
     group_keys: &mut Vec<String>,
+    max_down_bps: u64,
+    max_up_bps: u64,
 ) -> Vec<IpPortGroup> {
     let mut totals: HashMap<(String, u16), (usize, u64, u64)> = HashMap::new();
     for conn in connections {
+        let traffic = etw_traffic_for_connection(etw, conn);
         let entry = totals
             .entry((conn.remote_ip.clone(), conn.remote_port))
             .or_default();
         entry.0 += 1;
-        entry.1 += conn.bytes_in;
-        entry.2 += conn.bytes_out;
+        entry.1 += traffic.bytes_in;
+        entry.2 += traffic.bytes_out;
     }
 
     let mut groups: Vec<IpPortGroup> = totals
@@ -426,7 +455,7 @@ fn group_by_ip_port(
         .map(|((remote_ip, remote_port), (count, bytes_in, bytes_out))| {
             let key = format!("ip_port:{remote_ip}:{remote_port}");
             group_keys.push(key.clone());
-            let spd = tracker.group_speed(&key, bytes_in, bytes_out);
+            let spd = tracker.group_speed(&key, bytes_in, bytes_out, max_down_bps, max_up_bps);
             IpPortGroup {
                 remote_ip,
                 remote_port,
@@ -447,8 +476,11 @@ fn group_by_ip_port(
 
 fn group_by_ip_process(
     connections: &[TcpConnection],
+    etw: &EtwTrafficSnapshot,
     tracker: &mut SpeedTracker,
     group_keys: &mut Vec<String>,
+    max_down_bps: u64,
+    max_up_bps: u64,
 ) -> Result<Vec<IpProcessGroup>, String> {
     let mut system = System::new();
     system.refresh_processes(ProcessesToUpdate::All, true);
@@ -456,12 +488,13 @@ fn group_by_ip_process(
     let mut totals: HashMap<(String, String), (usize, u64, u64)> = HashMap::new();
     for conn in connections {
         let process_name = resolve_process_name(&system, conn.owning_pid);
+        let traffic = etw_traffic_for_connection(etw, conn);
         let entry = totals
             .entry((conn.remote_ip.clone(), process_name))
             .or_default();
         entry.0 += 1;
-        entry.1 += conn.bytes_in;
-        entry.2 += conn.bytes_out;
+        entry.1 += traffic.bytes_in;
+        entry.2 += traffic.bytes_out;
     }
 
     let mut groups: Vec<IpProcessGroup> = totals
@@ -469,7 +502,7 @@ fn group_by_ip_process(
         .map(|((remote_ip, process_name), (count, bytes_in, bytes_out))| {
             let key = format!("ip_proc:{remote_ip}:{process_name}");
             group_keys.push(key.clone());
-            let spd = tracker.group_speed(&key, bytes_in, bytes_out);
+            let spd = tracker.group_speed(&key, bytes_in, bytes_out, max_down_bps, max_up_bps);
             IpProcessGroup {
                 remote_ip,
                 process_name,
@@ -490,8 +523,11 @@ fn group_by_ip_process(
 
 fn group_by_ip_port_process(
     connections: &[TcpConnection],
+    etw: &EtwTrafficSnapshot,
     tracker: &mut SpeedTracker,
     group_keys: &mut Vec<String>,
+    max_down_bps: u64,
+    max_up_bps: u64,
 ) -> Result<Vec<IpPortProcessGroup>, String> {
     let mut system = System::new();
     system.refresh_processes(ProcessesToUpdate::All, true);
@@ -499,6 +535,7 @@ fn group_by_ip_port_process(
     let mut totals: HashMap<(String, u16, String), (usize, u64, u64)> = HashMap::new();
     for conn in connections {
         let process_name = resolve_process_name(&system, conn.owning_pid);
+        let traffic = etw_traffic_for_connection(etw, conn);
         let entry = totals
             .entry((
                 conn.remote_ip.clone(),
@@ -507,8 +544,8 @@ fn group_by_ip_port_process(
             ))
             .or_default();
         entry.0 += 1;
-        entry.1 += conn.bytes_in;
-        entry.2 += conn.bytes_out;
+        entry.1 += traffic.bytes_in;
+        entry.2 += traffic.bytes_out;
     }
 
     let mut groups: Vec<IpPortProcessGroup> = totals
@@ -516,7 +553,7 @@ fn group_by_ip_port_process(
         .map(|((remote_ip, remote_port, process_name), (count, bytes_in, bytes_out))| {
             let key = format!("ip_port_proc:{remote_ip}:{remote_port}:{process_name}");
             group_keys.push(key.clone());
-            let spd = tracker.group_speed(&key, bytes_in, bytes_out);
+            let spd = tracker.group_speed(&key, bytes_in, bytes_out, max_down_bps, max_up_bps);
             IpPortProcessGroup {
                 remote_ip,
                 remote_port,
@@ -535,6 +572,20 @@ fn group_by_ip_port_process(
             .then_with(|| a.process_name.cmp(&b.process_name))
     });
     Ok(groups)
+}
+
+fn etw_traffic_for_connection(
+    etw: &EtwTrafficSnapshot,
+    conn: &TcpConnection,
+) -> crate::etw::TrafficCounters {
+    etw.counters
+        .get(&TrafficKey {
+            remote_ip: conn.remote_ip.clone(),
+            remote_port: conn.remote_port,
+            pid: conn.owning_pid,
+        })
+        .copied()
+        .unwrap_or_default()
 }
 
 fn resolve_process_name(system: &System, pid: u32) -> String {

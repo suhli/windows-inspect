@@ -2,6 +2,7 @@
 
 mod net;
 mod speed;
+mod etw;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -23,7 +24,12 @@ fn chart_width(ui: &MainWindow) -> f32 {
     (logical_w - 40.0).max(320.0)
 }
 
-fn apply_snapshot(ui: &MainWindow, snapshot: net::TcpSnapshot, tracker: &SpeedTracker) {
+fn apply_snapshot(
+    ui: &MainWindow,
+    snapshot: net::TcpSnapshot,
+    tracker: &SpeedTracker,
+    etw_status: Option<&str>,
+) {
     let chart_w = chart_width(ui);
     let ip_port_count = snapshot.by_ip_port.len();
     let ip_process_count = snapshot.by_ip_process.len();
@@ -76,18 +82,28 @@ fn apply_snapshot(ui: &MainWindow, snapshot: net::TcpSnapshot, tracker: &SpeedTr
     ui.set_upload_path(
         build_line_path(tracker.upload_history(), chart_w, CHART_HEIGHT).into(),
     );
+    let etw_status = etw_status.unwrap_or("ETW 网络事件采集中");
     ui.set_status_text(
         format!(
-            "已采集 {total} 条 ESTABLISHED 连接 · {ip_port_count} 个 IP+端口组 · {ip_process_count} 个 IP+进程组 · {ip_port_process_count} 个 IP+端口+进程组 · 折线图为全网卡总流量"
+            "已采集 {total} 条 ESTABLISHED 连接 · {ip_port_count} 个 IP+端口组 · {ip_process_count} 个 IP+进程组 · {ip_port_process_count} 个 IP+端口+进程组 · {etw_status}"
         )
         .into(),
     );
     ui.set_last_updated(format_time_now().into());
 }
 
-fn refresh_ui(ui: &MainWindow, tracker: &mut SpeedTracker) {
-    match capture_tcp_snapshot(tracker) {
-        Ok(snapshot) => apply_snapshot(ui, snapshot, tracker),
+fn refresh_ui(
+    ui: &MainWindow,
+    tracker: &mut SpeedTracker,
+    etw: Option<&etw::EtwTrafficCollector>,
+    etw_status: Option<&str>,
+) {
+    let etw_snapshot = etw
+        .map(|collector| collector.snapshot())
+        .unwrap_or_default();
+
+    match capture_tcp_snapshot(tracker, &etw_snapshot) {
+        Ok(snapshot) => apply_snapshot(ui, snapshot, tracker, etw_status),
         Err(err) => ui.set_status_text(format!("采集失败: {err}").into()),
     }
 }
@@ -95,28 +111,67 @@ fn refresh_ui(ui: &MainWindow, tracker: &mut SpeedTracker) {
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui = MainWindow::new()?;
     let tracker = Rc::new(RefCell::new(SpeedTracker::new()));
+    let etw_collector = Rc::new(match etw::EtwTrafficCollector::start() {
+        Ok(collector) => Some(collector),
+        Err(err) => {
+            ui.set_status_text(format!("{err}；请尝试以管理员身份运行").into());
+            None
+        }
+    });
+    let etw_status = if etw_collector.is_some() {
+        None
+    } else {
+        Some("ETW 未启动，表格分组速度不可用")
+    };
 
-    refresh_ui(&ui, &mut tracker.borrow_mut());
+    refresh_ui(
+        &ui,
+        &mut tracker.borrow_mut(),
+        etw_collector.as_ref().as_ref(),
+        etw_status,
+    );
 
     let ui_weak = ui.as_weak();
     let tracker_refresh = tracker.clone();
+    let etw_refresh = etw_collector.clone();
     ui.on_refresh_requested(move || {
         let Some(ui) = ui_weak.upgrade() else {
             return;
         };
         ui.set_status_text("正在刷新…".into());
-        refresh_ui(&ui, &mut tracker_refresh.borrow_mut());
+        let status = if etw_refresh.is_some() {
+            None
+        } else {
+            Some("ETW 未启动，表格分组速度不可用")
+        };
+        refresh_ui(
+            &ui,
+            &mut tracker_refresh.borrow_mut(),
+            etw_refresh.as_ref().as_ref(),
+            status,
+        );
     });
 
     let ui_weak = ui.as_weak();
     let tracker_timer = tracker.clone();
+    let etw_timer = etw_collector.clone();
     let timer = slint::Timer::default();
     timer.start(
         slint::TimerMode::Repeated,
         Duration::from_secs(2),
         move || {
             if let Some(ui) = ui_weak.upgrade() {
-                refresh_ui(&ui, &mut tracker_timer.borrow_mut());
+                let status = if etw_timer.is_some() {
+                    None
+                } else {
+                    Some("ETW 未启动，表格分组速度不可用")
+                };
+                refresh_ui(
+                    &ui,
+                    &mut tracker_timer.borrow_mut(),
+                    etw_timer.as_ref().as_ref(),
+                    status,
+                );
             }
         },
     );
