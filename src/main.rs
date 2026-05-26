@@ -44,6 +44,12 @@ fn chart_width(ui: &MainWindow) -> f32 {
     (logical_w - 40.0).max(320.0)
 }
 
+fn sync_sort_ui(ui: &MainWindow, sort: SortState) {
+    ui.set_sort_table(sort.table);
+    ui.set_sort_column(sort.column);
+    ui.set_sort_ascending(sort.ascending);
+}
+
 fn apply_snapshot(
     ui: &MainWindow,
     mut snapshot: net::TcpSnapshot,
@@ -51,6 +57,7 @@ fn apply_snapshot(
     etw_status: Option<&str>,
     sort: SortState,
 ) {
+    sync_sort_ui(ui, sort);
     let chart_w = chart_width(ui);
     let ip_port_count = snapshot.by_ip_port.len();
     let ip_process_count = snapshot.by_ip_process.len();
@@ -251,7 +258,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let etw_sort = etw_collector.clone();
     let sort_for_callback = sort_state.clone();
     ui.on_sort_requested(move |table, column| {
-        {
+        let sort = {
             let mut sort = sort_for_callback.borrow_mut();
             if sort.table == table && sort.column == column {
                 sort.ascending = !sort.ascending;
@@ -260,7 +267,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 sort.column = column;
                 sort.ascending = true;
             }
-        }
+            *sort
+        };
 
         let Some(ui) = ui_weak.upgrade() else {
             return;
@@ -270,12 +278,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         } else {
             Some("ETW 未启动，表格分组速度不可用")
         };
+        sync_sort_ui(&ui, sort);
         refresh_ui(
             &ui,
             &mut tracker_sort.borrow_mut(),
             etw_sort.as_ref().as_ref(),
             status,
-            *sort_for_callback.borrow(),
+            sort,
         );
     });
 
