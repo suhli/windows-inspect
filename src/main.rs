@@ -3,6 +3,7 @@
 mod net;
 mod speed;
 mod etw;
+mod titlebar;
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -10,11 +11,12 @@ use std::time::Duration;
 
 use net::{build_line_path, capture_tcp_snapshot, format_speed};
 use speed::SpeedTracker;
-use slint::{ModelRc, VecModel};
+use slint::{ComponentHandle, ModelRc, VecModel};
 
 slint::include_modules!();
 
 const CHART_HEIGHT: f32 = 120.0;
+const APP_TITLE: &str = "Windows 网络连接与流量监控";
 
 fn chart_width(ui: &MainWindow) -> f32 {
     let window = ui.window();
@@ -176,7 +178,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
     );
 
-    ui.run()?;
+    ui.show()?;
+    titlebar::apply_native_style(APP_TITLE);
+    slint::run_event_loop()?;
     Ok(())
 }
 

@@ -72,8 +72,9 @@ fn handle_tcpip_event(
     counters: &Arc<Mutex<HashMap<TrafficKey, TrafficCounters>>>,
 ) {
     let opcode = record.opcode();
-    let is_send = matches!(opcode, 10 | 26);
-    let is_recv = matches!(opcode, 11 | 27);
+    let event_id = record.event_id();
+    let is_send = matches!(opcode, 10 | 26) || matches!(event_id, 10 | 26);
+    let is_recv = matches!(opcode, 11 | 27) || matches!(event_id, 11 | 27);
     if !is_send && !is_recv {
         return;
     }
@@ -100,25 +101,30 @@ fn handle_tcpip_event(
         ["sport", "SPort", "SourcePort"]
     };
 
-    let Some(remote_ip) = parse_ip(&parser, &ip_names) else {
+    let remote_ips = parse_ips(&parser, &ip_names);
+    if remote_ips.is_empty() {
         return;
-    };
-    let Some(remote_port) = parse_port(&parser, &port_names) else {
+    }
+    let remote_ports = parse_ports(&parser, &port_names);
+    if remote_ports.is_empty() {
         return;
-    };
-
-    let key = TrafficKey {
-        remote_ip: remote_ip.to_string(),
-        remote_port,
-        pid,
-    };
+    }
 
     if let Ok(mut guard) = counters.lock() {
-        let entry = guard.entry(key).or_default();
-        if is_send {
-            entry.bytes_out = entry.bytes_out.saturating_add(size as u64);
-        } else {
-            entry.bytes_in = entry.bytes_in.saturating_add(size as u64);
+        for remote_ip in &remote_ips {
+            for &remote_port in &remote_ports {
+                let key = TrafficKey {
+                    remote_ip: remote_ip.to_string(),
+                    remote_port,
+                    pid,
+                };
+                let entry = guard.entry(key).or_default();
+                if is_send {
+                    entry.bytes_out = entry.bytes_out.saturating_add(size as u64);
+                } else {
+                    entry.bytes_in = entry.bytes_in.saturating_add(size as u64);
+                }
+            }
         }
     }
 }
@@ -132,26 +138,50 @@ fn parse_u32(parser: &Parser<'_, '_>, names: &[&str]) -> Option<u32> {
     None
 }
 
-fn parse_ip(parser: &Parser<'_, '_>, names: &[&str]) -> Option<IpAddr> {
+fn parse_ips(parser: &Parser<'_, '_>, names: &[&str]) -> Vec<IpAddr> {
+    let mut ips = Vec::new();
     for name in names {
         if let Ok(value) = parser.try_parse::<IpAddr>(name) {
-            return Some(value);
-        }
-    }
-    None
-}
-
-fn parse_port(parser: &Parser<'_, '_>, names: &[&str]) -> Option<u16> {
-    for name in names {
-        if let Ok(value) = parser.try_parse::<u16>(name) {
-            return Some(value);
+            push_ip_variants(&mut ips, value);
         }
         if let Ok(value) = parser.try_parse::<u32>(name) {
-            if value <= u16::MAX as u32 {
-                return Some(value as u16);
-            }
-            return Some(u16::from_be((value & 0xFFFF) as u16));
+            push_ip_variants(&mut ips, IpAddr::V4(value.to_be().into()));
         }
     }
-    None
+    ips
+}
+
+fn parse_ports(parser: &Parser<'_, '_>, names: &[&str]) -> Vec<u16> {
+    let mut ports = Vec::new();
+    for name in names {
+        if let Ok(value) = parser.try_parse::<u16>(name) {
+            push_port_variant(&mut ports, value);
+            push_port_variant(&mut ports, u16::from_be(value));
+        }
+        if let Ok(value) = parser.try_parse::<u32>(name) {
+            let port = (value & 0xFFFF) as u16;
+            push_port_variant(&mut ports, port);
+            push_port_variant(&mut ports, u16::from_be(port));
+        }
+    }
+    ports
+}
+
+fn push_ip_variants(ips: &mut Vec<IpAddr>, ip: IpAddr) {
+    push_ip_variant(ips, ip);
+    if let IpAddr::V4(v4) = ip {
+        push_ip_variant(ips, IpAddr::V4(u32::from(v4).swap_bytes().into()));
+    }
+}
+
+fn push_ip_variant(ips: &mut Vec<IpAddr>, ip: IpAddr) {
+    if !ips.contains(&ip) {
+        ips.push(ip);
+    }
+}
+
+fn push_port_variant(ports: &mut Vec<u16>, port: u16) {
+    if port != 0 && !ports.contains(&port) {
+        ports.push(port);
+    }
 }
