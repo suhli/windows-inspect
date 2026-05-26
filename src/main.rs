@@ -13,10 +13,18 @@ use slint::{ModelRc, VecModel};
 
 slint::include_modules!();
 
-const CHART_WIDTH: f32 = 920.0;
 const CHART_HEIGHT: f32 = 120.0;
 
+fn chart_width(ui: &MainWindow) -> f32 {
+    let window = ui.window();
+    let size = window.size();
+    let scale = window.scale_factor();
+    let logical_w = size.width as f32 / scale;
+    (logical_w - 40.0).max(320.0)
+}
+
 fn apply_snapshot(ui: &MainWindow, snapshot: net::TcpSnapshot, tracker: &SpeedTracker) {
+    let chart_w = chart_width(ui);
     let ip_port_count = snapshot.by_ip_port.len();
     let ip_process_count = snapshot.by_ip_process.len();
     let ip_port_process_count = snapshot.by_ip_port_process.len();
@@ -63,10 +71,10 @@ fn apply_snapshot(ui: &MainWindow, snapshot: net::TcpSnapshot, tracker: &SpeedTr
     ui.set_ip_process_rows(ModelRc::from(ip_process_model));
     ui.set_ip_port_process_rows(ModelRc::from(ip_port_process_model));
     ui.set_download_path(
-        build_line_path(tracker.download_history(), CHART_WIDTH, CHART_HEIGHT).into(),
+        build_line_path(tracker.download_history(), chart_w, CHART_HEIGHT).into(),
     );
     ui.set_upload_path(
-        build_line_path(tracker.upload_history(), CHART_WIDTH, CHART_HEIGHT).into(),
+        build_line_path(tracker.upload_history(), chart_w, CHART_HEIGHT).into(),
     );
     ui.set_status_text(
         format!(
