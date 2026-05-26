@@ -1,4 +1,4 @@
-import { TabWidget, ListView, HorizontalBox, VerticalBox } from "std-widgets.slint";
+import { TabWidget, ListView, HorizontalBox, VerticalBox, Slider } from "std-widgets.slint";
 
 export struct IpPortRow {
     remote-ip: string,
@@ -477,6 +477,11 @@ export component MainWindow inherits Window {
     min-width: 720px;
     min-height: 560px;
     background: #020617;
+    no-frame: root.overlay-mode;
+    always-on-top: root.overlay-mode;
+
+    in-out property <bool> overlay-mode: false;
+    in-out property <int> overlay-opacity: 50;
 
     in property <int> total-count: 0;
     in property <string> total-down-speed: "0 B/s";
@@ -494,6 +499,9 @@ export component MainWindow inherits Window {
 
     callback refresh-requested();
     callback sort-requested(int, int);
+    callback overlay-toggle-requested();
+    callback overlay-opacity-changed(int);
+    callback overlay-drag-requested();
 
     VerticalBox {
         width: 100%;
@@ -504,28 +512,91 @@ export component MainWindow inherits Window {
             spacing: 12px;
             alignment: space-between;
 
-            Text {
-                text: "Windows 网络连接与流量监控";
-                color: #f8fafc;
-                font-size: 22px;
-                font-weight: 700;
-                vertical-alignment: center;
+            title-drag := TouchArea {
+                horizontal-stretch: 1;
+                enabled: root.overlay-mode;
+                pointer-event(event) => {
+                    if (event.button == PointerEventButton.left && event.kind == PointerEventKind.down) {
+                        root.overlay-drag-requested();
+                    }
+                }
+
+                Text {
+                    text: "Windows 网络连接与流量监控";
+                    color: #f8fafc;
+                    font-size: 22px;
+                    font-weight: 700;
+                    vertical-alignment: center;
+                }
             }
 
-            Rectangle {
-                width: 88px;
-                height: 36px;
-                background: refresh-touch.has-hover ? #0284c7 : #0ea5e9;
-                border-radius: 6px;
-                refresh-touch := TouchArea {
-                    clicked => { root.refresh-requested(); }
+            HorizontalBox {
+                spacing: 8px;
+                alignment: end;
+
+                if root.overlay-mode: HorizontalBox {
+                    spacing: 8px;
+                    alignment: center;
+
+                    Text {
+                        text: "透明度";
+                        color: #94a3b8;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                    }
+
+                    Slider {
+                        width: 120px;
+                        minimum: 10;
+                        maximum: 100;
+                        value: root.overlay-opacity;
+                        changed(value) => {
+                            root.overlay-opacity = round(value);
+                            root.overlay-opacity-changed(root.overlay-opacity);
+                        }
+                    }
+
+                    Text {
+                        text: root.overlay-opacity + "%";
+                        color: #94a3b8;
+                        font-size: 12px;
+                        vertical-alignment: center;
+                        min-width: 36px;
+                    }
                 }
-                Text {
-                    text: "刷新";
-                    color: #ffffff;
-                    font-size: 14px;
-                    horizontal-alignment: center;
-                    vertical-alignment: center;
+
+                Rectangle {
+                    width: root.overlay-mode ? 96px : 88px;
+                    height: 36px;
+                    background: overlay-touch.has-hover ? #6d28d9 : #7c3aed;
+                    border-radius: 6px;
+                    overlay-touch := TouchArea {
+                        clicked => { root.overlay-toggle-requested(); }
+                    }
+                    Text {
+                        text: root.overlay-mode ? "退出悬浮" : "悬浮";
+                        color: #ffffff;
+                        font-size: 14px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
+                }
+
+                Rectangle {
+                    width: 88px;
+                    height: 36px;
+                    background: refresh-touch.has-hover ? #0284c7 : #0ea5e9;
+                    border-radius: 6px;
+                    refresh-touch := TouchArea {
+                        clicked => { root.refresh-requested(); }
+                    }
+                    Text {
+                        text: "刷新";
+                        color: #ffffff;
+                        font-size: 14px;
+                        horizontal-alignment: center;
+                        vertical-alignment: center;
+                    }
                 }
             }
         }

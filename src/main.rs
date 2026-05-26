@@ -18,6 +18,7 @@ slint::include_modules!();
 
 const CHART_HEIGHT: f32 = 120.0;
 const APP_TITLE: &str = "Windows 网络连接与流量监控";
+const DEFAULT_OVERLAY_OPACITY: i32 = 50;
 
 #[derive(Clone, Copy)]
 struct SortState {
@@ -49,6 +50,24 @@ fn sync_sort_ui(ui: &MainWindow, sort: SortState) {
     ui.set_sort_column(sort.column);
     ui.set_sort_ascending(sort.ascending);
 }
+
+#[cfg(target_os = "windows")]
+fn schedule_overlay_effects(active: bool, opacity: i32) {
+    slint::Timer::single_shot(Duration::from_millis(50), move || {
+        let Some(hwnd) = titlebar::find_hwnd(APP_TITLE) else {
+            return;
+        };
+        if active {
+            titlebar::set_window_opacity(hwnd, opacity.clamp(10, 100) as u8);
+        } else {
+            titlebar::clear_window_opacity(hwnd);
+            titlebar::apply_native_style(APP_TITLE);
+        }
+    });
+}
+
+#[cfg(not(target_os = "windows"))]
+fn schedule_overlay_effects(_active: bool, _opacity: i32) {}
 
 fn apply_snapshot(
     ui: &MainWindow,
@@ -286,6 +305,42 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             status,
             sort,
         );
+    });
+
+    ui.set_overlay_opacity(DEFAULT_OVERLAY_OPACITY);
+
+    let ui_weak = ui.as_weak();
+    ui.on_overlay_toggle_requested(move || {
+        let Some(ui) = ui_weak.upgrade() else {
+            return;
+        };
+        let active = !ui.get_overlay_mode();
+        let opacity = ui.get_overlay_opacity();
+        ui.set_overlay_mode(active);
+        schedule_overlay_effects(active, opacity);
+    });
+
+    let ui_weak = ui.as_weak();
+    ui.on_overlay_opacity_changed(move |opacity| {
+        let Some(ui) = ui_weak.upgrade() else {
+            return;
+        };
+        if !ui.get_overlay_mode() {
+            return;
+        }
+        #[cfg(target_os = "windows")]
+        if let Some(hwnd) = titlebar::find_hwnd(APP_TITLE) {
+            titlebar::set_window_opacity(hwnd, opacity.clamp(10, 100) as u8);
+        }
+    });
+
+    let ui_weak = ui.as_weak();
+    ui.on_overlay_drag_requested(move || {
+        #[cfg(target_os = "windows")]
+        if let Some(hwnd) = titlebar::find_hwnd(APP_TITLE) {
+            titlebar::start_window_drag(hwnd);
+        }
+        let _ = ui_weak;
     });
 
     let ui_weak = ui.as_weak();
