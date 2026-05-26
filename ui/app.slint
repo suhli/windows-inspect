@@ -4,12 +4,16 @@ export struct IpPortRow {
     remote-ip: string,
     remote-port: int,
     count: int,
+    down-speed: string,
+    up-speed: string,
 }
 
 export struct IpProcessRow {
     remote-ip: string,
     process-name: string,
     count: int,
+    down-speed: string,
+    up-speed: string,
 }
 
 component StatCard inherits Rectangle {
@@ -19,26 +23,28 @@ component StatCard inherits Rectangle {
     border-radius: 8px;
 
     VerticalBox {
-        padding: 16px;
+        padding: 12px;
         spacing: 4px;
         Text {
             text: root.label;
             color: #94a3b8;
-            font-size: 13px;
+            font-size: 12px;
         }
         Text {
             text: root.value;
             color: #38bdf8;
-            font-size: 28px;
+            font-size: 20px;
             font-weight: 700;
         }
     }
 }
 
-component TableHeader3 inherits Rectangle {
+component TableHeader5 inherits Rectangle {
     in property <string> col1;
     in property <string> col2;
     in property <string> col3;
+    in property <string> col4;
+    in property <string> col5;
     height: 40px;
     background: #1e293b;
 
@@ -48,7 +54,7 @@ component TableHeader3 inherits Rectangle {
             Text {
                 text: root.col1;
                 color: #cbd5e1;
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: 600;
                 vertical-alignment: center;
                 x: 12px;
@@ -59,7 +65,7 @@ component TableHeader3 inherits Rectangle {
             Text {
                 text: root.col2;
                 color: #cbd5e1;
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: 600;
                 horizontal-alignment: center;
                 vertical-alignment: center;
@@ -70,10 +76,100 @@ component TableHeader3 inherits Rectangle {
             Text {
                 text: root.col3;
                 color: #cbd5e1;
-                font-size: 13px;
+                font-size: 12px;
                 font-weight: 600;
                 horizontal-alignment: center;
                 vertical-alignment: center;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            Text {
+                text: root.col4;
+                color: #38bdf8;
+                font-size: 12px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+        Rectangle {
+            horizontal-stretch: 1;
+            Text {
+                text: root.col5;
+                color: #34d399;
+                font-size: 12px;
+                font-weight: 600;
+                horizontal-alignment: center;
+                vertical-alignment: center;
+            }
+        }
+    }
+}
+
+component LineChartPanel inherits Rectangle {
+    in property <string> download-path;
+    in property <string> upload-path;
+    in property <string> down-label;
+    in property <string> up-label;
+    height: 200px;
+    background: #0f172a;
+    border-radius: 8px;
+
+    VerticalBox {
+        padding: 12px;
+        spacing: 8px;
+
+        HorizontalBox {
+            spacing: 16px;
+            HorizontalBox {
+                spacing: 6px;
+                Rectangle {
+                    width: 12px;
+                    height: 3px;
+                    background: #38bdf8;
+                    y: 8px;
+                }
+                Text {
+                    text: root.down-label;
+                    color: #94a3b8;
+                    font-size: 11px;
+                }
+            }
+            HorizontalBox {
+                spacing: 6px;
+                Rectangle {
+                    width: 12px;
+                    height: 3px;
+                    background: #34d399;
+                    y: 8px;
+                }
+                Text {
+                    text: root.up-label;
+                    color: #94a3b8;
+                    font-size: 11px;
+                }
+            }
+        }
+
+        Rectangle {
+            vertical-stretch: 1;
+            background: #111827;
+            border-radius: 6px;
+
+            Path {
+                width: 100%;
+                height: 100%;
+                commands: root.download-path;
+                stroke: #38bdf8;
+                stroke-width: 2px;
+            }
+            Path {
+                width: 100%;
+                height: 100%;
+                commands: root.upload-path;
+                stroke: #34d399;
+                stroke-width: 2px;
             }
         }
     }
@@ -86,10 +182,12 @@ component IpPortTab inherits Rectangle {
 
     VerticalBox {
         padding: 0;
-        TableHeader3 {
+        TableHeader5 {
             col1: "目标 IP";
             col2: "端口";
             col3: "连接数";
+            col4: "下载";
+            col5: "上传";
         }
         ListView {
             vertical-stretch: 1;
@@ -103,7 +201,7 @@ component IpPortTab inherits Rectangle {
                         Text {
                             text: row.remote-ip;
                             color: #e2e8f0;
-                            font-size: 13px;
+                            font-size: 12px;
                             vertical-alignment: center;
                             x: 12px;
                         }
@@ -113,7 +211,7 @@ component IpPortTab inherits Rectangle {
                         Text {
                             text: row.remote-port;
                             color: #e2e8f0;
-                            font-size: 13px;
+                            font-size: 12px;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -122,9 +220,28 @@ component IpPortTab inherits Rectangle {
                         horizontal-stretch: 1;
                         Text {
                             text: row.count;
+                            color: #e2e8f0;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.down-speed;
                             color: #38bdf8;
-                            font-size: 13px;
-                            font-weight: 600;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.up-speed;
+                            color: #34d399;
+                            font-size: 12px;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -142,10 +259,12 @@ component IpProcessTab inherits Rectangle {
 
     VerticalBox {
         padding: 0;
-        TableHeader3 {
+        TableHeader5 {
             col1: "目标 IP";
             col2: "进程";
             col3: "连接数";
+            col4: "下载";
+            col5: "上传";
         }
         ListView {
             vertical-stretch: 1;
@@ -159,7 +278,7 @@ component IpProcessTab inherits Rectangle {
                         Text {
                             text: row.remote-ip;
                             color: #e2e8f0;
-                            font-size: 13px;
+                            font-size: 12px;
                             vertical-alignment: center;
                             x: 12px;
                         }
@@ -169,7 +288,7 @@ component IpProcessTab inherits Rectangle {
                         Text {
                             text: row.process-name;
                             color: #e2e8f0;
-                            font-size: 13px;
+                            font-size: 12px;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -178,9 +297,28 @@ component IpProcessTab inherits Rectangle {
                         horizontal-stretch: 1;
                         Text {
                             text: row.count;
+                            color: #e2e8f0;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.down-speed;
                             color: #38bdf8;
-                            font-size: 13px;
-                            font-weight: 600;
+                            font-size: 12px;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                    Rectangle {
+                        horizontal-stretch: 1;
+                        Text {
+                            text: row.up-speed;
+                            color: #34d399;
+                            font-size: 12px;
                             horizontal-alignment: center;
                             vertical-alignment: center;
                         }
@@ -193,13 +331,17 @@ component IpProcessTab inherits Rectangle {
 
 export component MainWindow inherits Window {
     title: "Windows TCP 网络监控";
-    preferred-width: 900px;
-    preferred-height: 640px;
+    preferred-width: 960px;
+    preferred-height: 780px;
     background: #020617;
 
     in property <int> total-count: 0;
+    in property <string> total-down-speed: "0 B/s";
+    in property <string> total-up-speed: "0 B/s";
     in property <[IpPortRow]> ip-port-rows: [];
     in property <[IpProcessRow]> ip-process-rows: [];
+    in property <string> download-path: "";
+    in property <string> upload-path: "";
     in property <string> status-text: "正在加载…";
     in property <string> last-updated: "";
 
@@ -207,7 +349,7 @@ export component MainWindow inherits Window {
 
     VerticalBox {
         padding: 20px;
-        spacing: 16px;
+        spacing: 14px;
 
         HorizontalBox {
             spacing: 12px;
@@ -240,29 +382,47 @@ export component MainWindow inherits Window {
         }
 
         HorizontalBox {
-            spacing: 16px;
+            spacing: 12px;
             StatCard {
                 horizontal-stretch: 1;
-                label: "TCP 连接总数";
+                label: "TCP 连接数";
                 value: root.total-count;
             }
-            Rectangle {
-                horizontal-stretch: 2;
-                background: #1e293b;
-                border-radius: 8px;
-                VerticalBox {
-                    padding: 12px;
-                    spacing: 4px;
-                    Text {
-                        text: root.status-text;
-                        color: #94a3b8;
-                        font-size: 12px;
-                    }
-                    Text {
-                        text: "上次更新: " + root.last-updated;
-                        color: #64748b;
-                        font-size: 11px;
-                    }
+            StatCard {
+                horizontal-stretch: 1;
+                label: "总下载速度";
+                value: root.total-down-speed;
+            }
+            StatCard {
+                horizontal-stretch: 1;
+                label: "总上传速度";
+                value: root.total-up-speed;
+            }
+        }
+
+        LineChartPanel {
+            download-path: root.download-path;
+            upload-path: root.upload-path;
+            down-label: "下载 " + root.total-down-speed;
+            up-label: "上传 " + root.total-up-speed;
+        }
+
+        Rectangle {
+            background: #1e293b;
+            border-radius: 8px;
+            height: 52px;
+            VerticalBox {
+                padding: 10px;
+                spacing: 2px;
+                Text {
+                    text: root.status-text;
+                    color: #94a3b8;
+                    font-size: 12px;
+                }
+                Text {
+                    text: "上次更新: " + root.last-updated;
+                    color: #64748b;
+                    font-size: 11px;
                 }
             }
         }
