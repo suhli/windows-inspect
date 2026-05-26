@@ -48,71 +48,76 @@ component StatCard inherits Rectangle {
     }
 }
 
-component TableHeader5 inherits Rectangle {
-    in property <string> col1;
-    in property <string> col2;
-    in property <string> col3;
-    in property <string> col4;
-    in property <string> col5;
+component ColIp inherits Rectangle {
+    in property <string> cell-text;
+    in property <bool> is-header: false;
+    width: 210px;
+    Text {
+        text: root.cell-text;
+        color: root.is-header ? #cbd5e1 : #e2e8f0;
+        font-size: 12px;
+        font-weight: root.is-header ? 600 : 400;
+        vertical-alignment: center;
+        x: 8px;
+        overflow: elide;
+    }
+}
+
+component ColCenter inherits Rectangle {
+    in property <string> cell-text;
+    in property <length> cell-width;
+    in property <bool> is-header: false;
+    in property <brush> cell-color: #e2e8f0;
+    width: root.cell-width;
+    Text {
+        text: root.cell-text;
+        color: root.is-header ? #cbd5e1 : root.cell-color;
+        font-size: 12px;
+        font-weight: root.is-header ? 600 : 400;
+        horizontal-alignment: center;
+        vertical-alignment: center;
+        overflow: elide;
+    }
+}
+
+component FiveColHeader inherits Rectangle {
+    in property <string> c1;
+    in property <string> c2;
+    in property <string> c3;
+    in property <string> c4;
+    in property <string> c5;
+    in property <length> col2-width: 58px;
     height: 40px;
     background: #1e293b;
 
     HorizontalBox {
-        Rectangle {
-            horizontal-stretch: 2;
-            Text {
-                text: root.col1;
-                color: #cbd5e1;
-                font-size: 12px;
-                font-weight: 600;
-                vertical-alignment: center;
-                x: 12px;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col2;
-                color: #cbd5e1;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col3;
-                color: #cbd5e1;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col4;
-                color: #38bdf8;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col5;
-                color: #34d399;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
+        padding-left: 8px;
+        ColIp { cell-text: root.c1; is-header: true; }
+        ColCenter { cell-text: root.c2; cell-width: root.col2-width; is-header: true; }
+        ColCenter { cell-text: root.c3; cell-width: 52px; is-header: true; }
+        ColCenter { cell-text: root.c4; cell-width: 96px; is-header: true; cell-color: #38bdf8; }
+        ColCenter { cell-text: root.c5; cell-width: 96px; is-header: true; cell-color: #34d399; }
+    }
+}
+
+component SixColHeader inherits Rectangle {
+    in property <string> c1;
+    in property <string> c2;
+    in property <string> c3;
+    in property <string> c4;
+    in property <string> c5;
+    in property <string> c6;
+    height: 40px;
+    background: #1e293b;
+
+    HorizontalBox {
+        padding-left: 8px;
+        ColIp { cell-text: root.c1; is-header: true; }
+        ColCenter { cell-text: root.c2; cell-width: 52px; is-header: true; }
+        ColCenter { cell-text: root.c3; cell-width: 120px; is-header: true; }
+        ColCenter { cell-text: root.c4; cell-width: 52px; is-header: true; }
+        ColCenter { cell-text: root.c5; cell-width: 92px; is-header: true; cell-color: #38bdf8; }
+        ColCenter { cell-text: root.c6; cell-width: 92px; is-header: true; cell-color: #34d399; }
     }
 }
 
@@ -161,21 +166,21 @@ component LineChartPanel inherits Rectangle {
             }
         }
 
-        Rectangle {
+        chart-area := Rectangle {
             vertical-stretch: 1;
             background: #111827;
             border-radius: 6px;
 
             Path {
-                width: 100%;
-                height: 100%;
+                width: parent.width;
+                height: parent.height;
                 commands: root.download-path;
                 stroke: #38bdf8;
                 stroke-width: 2px;
             }
             Path {
-                width: 100%;
-                height: 100%;
+                width: parent.width;
+                height: parent.height;
                 commands: root.upload-path;
                 stroke: #34d399;
                 stroke-width: 2px;
@@ -191,12 +196,13 @@ component IpPortTab inherits Rectangle {
 
     VerticalBox {
         padding: 0;
-        TableHeader5 {
-            col1: "目标 IP";
-            col2: "端口";
-            col3: "连接数";
-            col4: "下载";
-            col5: "上传";
+        FiveColHeader {
+            c1: "目标 IP";
+            c2: "端口";
+            c3: "连接数";
+            c4: "下载";
+            c5: "上传";
+            col2-width: 58px;
         }
         ListView {
             vertical-stretch: 1;
@@ -205,137 +211,13 @@ component IpPortTab inherits Rectangle {
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
                 HorizontalBox {
-                    Rectangle {
-                        horizontal-stretch: 2;
-                        Text {
-                            text: row.remote-ip;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            vertical-alignment: center;
-                            x: 12px;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.remote-port;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.count;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.down-speed;
-                            color: #38bdf8;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.up-speed;
-                            color: #34d399;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
+                    padding-left: 8px;
+                    ColIp { cell-text: row.remote-ip; }
+                    ColCenter { cell-text: row.remote-port; cell-width: 58px; }
+                    ColCenter { cell-text: row.count; cell-width: 52px; }
+                    ColCenter { cell-text: row.down-speed; cell-width: 96px; cell-color: #38bdf8; }
+                    ColCenter { cell-text: row.up-speed; cell-width: 96px; cell-color: #34d399; }
                 }
-            }
-        }
-    }
-}
-
-component TableHeader6 inherits Rectangle {
-    in property <string> col1;
-    in property <string> col2;
-    in property <string> col3;
-    in property <string> col4;
-    in property <string> col5;
-    in property <string> col6;
-    height: 40px;
-    background: #1e293b;
-
-    HorizontalBox {
-        Rectangle {
-            horizontal-stretch: 2;
-            Text {
-                text: root.col1;
-                color: #cbd5e1;
-                font-size: 12px;
-                font-weight: 600;
-                vertical-alignment: center;
-                x: 12px;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col2;
-                color: #cbd5e1;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col3;
-                color: #cbd5e1;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col4;
-                color: #cbd5e1;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col5;
-                color: #38bdf8;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
-            }
-        }
-        Rectangle {
-            horizontal-stretch: 1;
-            Text {
-                text: root.col6;
-                color: #34d399;
-                font-size: 12px;
-                font-weight: 600;
-                horizontal-alignment: center;
-                vertical-alignment: center;
             }
         }
     }
@@ -348,13 +230,13 @@ component IpPortProcessTab inherits Rectangle {
 
     VerticalBox {
         padding: 0;
-        TableHeader6 {
-            col1: "目标 IP";
-            col2: "端口";
-            col3: "进程";
-            col4: "连接数";
-            col5: "下载";
-            col6: "上传";
+        SixColHeader {
+            c1: "目标 IP";
+            c2: "端口";
+            c3: "进程";
+            c4: "连接数";
+            c5: "下载";
+            c6: "上传";
         }
         ListView {
             vertical-stretch: 1;
@@ -363,66 +245,13 @@ component IpPortProcessTab inherits Rectangle {
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
                 HorizontalBox {
-                    Rectangle {
-                        horizontal-stretch: 2;
-                        Text {
-                            text: row.remote-ip;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            vertical-alignment: center;
-                            x: 12px;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.remote-port;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.process-name;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.count;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.down-speed;
-                            color: #38bdf8;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.up-speed;
-                            color: #34d399;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
+                    padding-left: 8px;
+                    ColIp { cell-text: row.remote-ip; }
+                    ColCenter { cell-text: row.remote-port; cell-width: 52px; }
+                    ColCenter { cell-text: row.process-name; cell-width: 120px; }
+                    ColCenter { cell-text: row.count; cell-width: 52px; }
+                    ColCenter { cell-text: row.down-speed; cell-width: 92px; cell-color: #38bdf8; }
+                    ColCenter { cell-text: row.up-speed; cell-width: 92px; cell-color: #34d399; }
                 }
             }
         }
@@ -436,12 +265,13 @@ component IpProcessTab inherits Rectangle {
 
     VerticalBox {
         padding: 0;
-        TableHeader5 {
-            col1: "目标 IP";
-            col2: "进程";
-            col3: "连接数";
-            col4: "下载";
-            col5: "上传";
+        FiveColHeader {
+            c1: "目标 IP";
+            c2: "进程";
+            c3: "连接数";
+            c4: "下载";
+            c5: "上传";
+            col2-width: 150px;
         }
         ListView {
             vertical-stretch: 1;
@@ -450,56 +280,12 @@ component IpProcessTab inherits Rectangle {
                 background: mod(i, 2) == 0 ? #0f172a : #111827;
 
                 HorizontalBox {
-                    Rectangle {
-                        horizontal-stretch: 2;
-                        Text {
-                            text: row.remote-ip;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            vertical-alignment: center;
-                            x: 12px;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.process-name;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.count;
-                            color: #e2e8f0;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.down-speed;
-                            color: #38bdf8;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
-                    Rectangle {
-                        horizontal-stretch: 1;
-                        Text {
-                            text: row.up-speed;
-                            color: #34d399;
-                            font-size: 12px;
-                            horizontal-alignment: center;
-                            vertical-alignment: center;
-                        }
-                    }
+                    padding-left: 8px;
+                    ColIp { cell-text: row.remote-ip; }
+                    ColCenter { cell-text: row.process-name; cell-width: 150px; }
+                    ColCenter { cell-text: row.count; cell-width: 52px; }
+                    ColCenter { cell-text: row.down-speed; cell-width: 96px; cell-color: #38bdf8; }
+                    ColCenter { cell-text: row.up-speed; cell-width: 96px; cell-color: #34d399; }
                 }
             }
         }

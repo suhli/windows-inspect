@@ -13,8 +13,8 @@ use slint::{ModelRc, VecModel};
 
 slint::include_modules!();
 
-const CHART_WIDTH: f32 = 860.0;
-const CHART_HEIGHT: f32 = 140.0;
+const CHART_WIDTH: f32 = 920.0;
+const CHART_HEIGHT: f32 = 120.0;
 
 fn apply_snapshot(ui: &MainWindow, snapshot: net::TcpSnapshot, tracker: &SpeedTracker) {
     let ip_port_count = snapshot.by_ip_port.len();

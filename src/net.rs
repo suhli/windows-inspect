@@ -73,7 +73,7 @@ pub fn capture_tcp_snapshot(tracker: &mut SpeedTracker) -> Result<TcpSnapshot, S
     connections.extend(read_tcp_v4(tracker)?);
     connections.extend(read_tcp_v6(tracker)?);
 
-    let if_octets = read_interface_octets()?;
+    let if_counters = read_interface_counters()?;
     let samples: Vec<ConnectionSample> = connections
         .iter()
         .map(|c| ConnectionSample {
@@ -82,7 +82,8 @@ pub fn capture_tcp_snapshot(tracker: &mut SpeedTracker) -> Result<TcpSnapshot, S
             bytes_out: c.bytes_out,
         })
         .collect();
-    let (total_down_bps, total_up_bps, per_conn_speed) = tracker.update(&samples, if_octets);
+    let (total_down_bps, total_up_bps, per_conn_speed) =
+        tracker.update(&samples, if_counters);
 
     let total_count = connections.len();
     let by_ip_port = group_by_ip_port(&connections, &per_conn_speed);
@@ -369,13 +370,15 @@ fn owner_pid_to_tcp6_row(row: &MIB_TCP6ROW_OWNER_PID) -> MIB_TCP6ROW {
     }
 }
 
-pub fn read_interface_octets() -> Result<(u64, u64), String> {
+pub fn read_interface_counters() -> Result<HashMap<u32, (u32, u32)>, String> {
+    use windows::Win32::NetworkManagement::IpHelper::IF_OPER_STATUS_OPERATIONAL;
+
     let mut size = 0u32;
     unsafe {
         let _ = GetIfTable(None, &mut size, false);
     }
     if size == 0 {
-        return Ok((0, 0));
+        return Ok(HashMap::new());
     }
 
     let mut buffer = vec![0u8; size as usize];
@@ -395,16 +398,18 @@ pub fn read_interface_octets() -> Result<(u64, u64), String> {
     let rows =
         unsafe { std::slice::from_raw_parts(table.table.as_ptr(), table.dwNumEntries as usize) };
 
-    let mut in_octets = 0u64;
-    let mut out_octets = 0u64;
+    let mut counters = HashMap::new();
     for row in rows {
-        if row.dwType == IF_TYPE_SOFTWARE_LOOPBACK || row.dwOperStatus.0 != 1 {
+        if row.dwType == IF_TYPE_SOFTWARE_LOOPBACK {
             continue;
         }
-        in_octets += u64::from(row.dwInOctets);
-        out_octets += u64::from(row.dwOutOctets);
+        // 只统计正在运行的网卡（OPERATIONAL = 5，之前误用 1 导致总速度恒为 0）
+        if row.dwOperStatus != IF_OPER_STATUS_OPERATIONAL {
+            continue;
+        }
+        counters.insert(row.dwIndex, (row.dwInOctets, row.dwOutOctets));
     }
-    Ok((in_octets, out_octets))
+    Ok(counters)
 }
 
 fn group_by_ip_port(

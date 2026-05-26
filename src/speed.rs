@@ -2,6 +2,8 @@ use std::collections::HashMap;
 use std::time::Instant;
 
 const HISTORY_LEN: usize = 60;
+/// 单次采样间隔内，单连接允许计入的最大字节增量（约 500 MB/s × 2s）
+const MAX_CONN_DELTA_PER_SAMPLE: u64 = 1_000_000_000;
 
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct ConnKey {
@@ -35,7 +37,7 @@ pub struct ConnSpeed {
 pub struct SpeedTracker {
     last_poll: Option<Instant>,
     conn_samples: HashMap<ConnKey, ByteSample>,
-    if_octets: Option<(u64, u64)>,
+    if_counters: HashMap<u32, (u32, u32)>,
     estats_enabled: HashMap<ConnKey, ()>,
     download_history: Vec<f32>,
     upload_history: Vec<f32>,
@@ -46,7 +48,7 @@ impl SpeedTracker {
         Self {
             last_poll: None,
             conn_samples: HashMap::new(),
-            if_octets: None,
+            if_counters: HashMap::new(),
             estats_enabled: HashMap::new(),
             download_history: Vec::with_capacity(HISTORY_LEN),
             upload_history: Vec::with_capacity(HISTORY_LEN),
@@ -64,7 +66,7 @@ impl SpeedTracker {
     pub fn update(
         &mut self,
         connections: &[ConnectionSample],
-        if_octets: (u64, u64),
+        if_counters: HashMap<u32, (u32, u32)>,
     ) -> (u64, u64, HashMap<ConnKey, ConnSpeed>) {
         let now = Instant::now();
         let mut per_conn = HashMap::new();
@@ -82,17 +84,20 @@ impl SpeedTracker {
                     };
 
                     if let Some(prev) = self.conn_samples.get(&key) {
-                        let din = current.bytes_in.saturating_sub(prev.bytes_in);
-                        let dout = current.bytes_out.saturating_sub(prev.bytes_out);
-                        let spd_in = (din as f64 / elapsed) as u64;
-                        let spd_out = (dout as f64 / elapsed) as u64;
-                        per_conn.insert(
-                            key.clone(),
-                            ConnSpeed {
-                                bytes_per_sec_in: spd_in,
-                                bytes_per_sec_out: spd_out,
-                            },
-                        );
+                        if prev.bytes_in > 0 || prev.bytes_out > 0 {
+                            let din = counter_delta(prev.bytes_in, current.bytes_in);
+                            let dout = counter_delta(prev.bytes_out, current.bytes_out);
+                            let spd_in = ((din as f64 / elapsed) as u64).min(MAX_CONN_DELTA_PER_SAMPLE);
+                            let spd_out =
+                                ((dout as f64 / elapsed) as u64).min(MAX_CONN_DELTA_PER_SAMPLE);
+                            per_conn.insert(
+                                key.clone(),
+                                ConnSpeed {
+                                    bytes_per_sec_in: spd_in,
+                                    bytes_per_sec_out: spd_out,
+                                },
+                            );
+                        }
                     }
 
                     self.conn_samples.insert(key, current);
@@ -101,7 +106,7 @@ impl SpeedTracker {
                 self.conn_samples
                     .retain(|k, _| connections.iter().any(|c| c.key == *k));
 
-                let (if_down, if_up) = if_octets_delta(self.if_octets, if_octets, elapsed);
+                let (if_down, if_up) = interface_speed(&self.if_counters, &if_counters, elapsed);
                 total_down = if_down;
                 total_up = if_up;
                 self.push_history(if_down as f32, if_up as f32);
@@ -119,7 +124,7 @@ impl SpeedTracker {
         }
 
         self.last_poll = Some(now);
-        self.if_octets = Some(if_octets);
+        self.if_counters = if_counters;
         (total_down, total_up, per_conn)
     }
 
@@ -141,15 +146,33 @@ impl SpeedTracker {
     }
 }
 
-fn if_octets_delta(prev: Option<(u64, u64)>, curr: (u64, u64), elapsed: f64) -> (u64, u64) {
-    let Some((pin, pout)) = prev else {
-        return (0, 0);
-    };
-    let down = curr.0.saturating_sub(pin);
-    let up = curr.1.saturating_sub(pout);
+fn counter_delta(prev: u64, curr: u64) -> u64 {
+    if curr >= prev {
+        curr - prev
+    } else {
+        // 计数器重置或回绕：忽略本次增量
+        0
+    }
+}
+
+fn interface_speed(
+    prev: &HashMap<u32, (u32, u32)>,
+    curr: &HashMap<u32, (u32, u32)>,
+    elapsed: f64,
+) -> (u64, u64) {
+    let mut down_bytes = 0u64;
+    let mut up_bytes = 0u64;
+
+    for (index, (cin, cout)) in curr {
+        if let Some((pin, pout)) = prev.get(index) {
+            down_bytes += cin.wrapping_sub(*pin) as u64;
+            up_bytes += cout.wrapping_sub(*pout) as u64;
+        }
+    }
+
     (
-        (down as f64 / elapsed) as u64,
-        (up as f64 / elapsed) as u64,
+        (down_bytes as f64 / elapsed) as u64,
+        (up_bytes as f64 / elapsed) as u64,
     )
 }
 
