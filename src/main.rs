@@ -6,6 +6,7 @@ mod etw;
 mod titlebar;
 
 use std::cell::RefCell;
+use std::cmp::Ordering;
 use std::rc::Rc;
 use std::time::Duration;
 
@@ -18,6 +19,23 @@ slint::include_modules!();
 const CHART_HEIGHT: f32 = 120.0;
 const APP_TITLE: &str = "Windows 网络连接与流量监控";
 
+#[derive(Clone, Copy)]
+struct SortState {
+    table: i32,
+    column: i32,
+    ascending: bool,
+}
+
+impl Default for SortState {
+    fn default() -> Self {
+        Self {
+            table: 0,
+            column: 0,
+            ascending: true,
+        }
+    }
+}
+
 fn chart_width(ui: &MainWindow) -> f32 {
     let window = ui.window();
     let size = window.size();
@@ -28,15 +46,18 @@ fn chart_width(ui: &MainWindow) -> f32 {
 
 fn apply_snapshot(
     ui: &MainWindow,
-    snapshot: net::TcpSnapshot,
+    mut snapshot: net::TcpSnapshot,
     tracker: &SpeedTracker,
     etw_status: Option<&str>,
+    sort: SortState,
 ) {
     let chart_w = chart_width(ui);
     let ip_port_count = snapshot.by_ip_port.len();
     let ip_process_count = snapshot.by_ip_process.len();
     let ip_port_process_count = snapshot.by_ip_port_process.len();
     let total = snapshot.total_count;
+
+    sort_snapshot(&mut snapshot, sort);
 
     let ip_port_model: Rc<VecModel<IpPortRow>> = Rc::new(VecModel::default());
     for group in snapshot.by_ip_port {
@@ -99,20 +120,88 @@ fn refresh_ui(
     tracker: &mut SpeedTracker,
     etw: Option<&etw::EtwTrafficCollector>,
     etw_status: Option<&str>,
+    sort: SortState,
 ) {
     let etw_snapshot = etw
         .map(|collector| collector.snapshot())
         .unwrap_or_default();
 
     match capture_tcp_snapshot(tracker, &etw_snapshot) {
-        Ok(snapshot) => apply_snapshot(ui, snapshot, tracker, etw_status),
+        Ok(snapshot) => apply_snapshot(ui, snapshot, tracker, etw_status, sort),
         Err(err) => ui.set_status_text(format!("采集失败: {err}").into()),
     }
+}
+
+fn sort_snapshot(snapshot: &mut net::TcpSnapshot, sort: SortState) {
+    match sort.table {
+        0 => snapshot.by_ip_port.sort_by(|a, b| apply_direction(compare_ip_port(a, b, sort.column), sort.ascending)),
+        1 => snapshot
+            .by_ip_process
+            .sort_by(|a, b| apply_direction(compare_ip_process(a, b, sort.column), sort.ascending)),
+        2 => snapshot
+            .by_ip_port_process
+            .sort_by(|a, b| apply_direction(compare_ip_port_process(a, b, sort.column), sort.ascending)),
+        _ => {}
+    }
+}
+
+fn apply_direction(ordering: Ordering, ascending: bool) -> Ordering {
+    if ascending {
+        ordering
+    } else {
+        ordering.reverse()
+    }
+}
+
+fn compare_ip_port(a: &net::IpPortGroup, b: &net::IpPortGroup, column: i32) -> Ordering {
+    match column {
+        0 => a.remote_ip.cmp(&b.remote_ip),
+        1 => a.remote_port.cmp(&b.remote_port),
+        2 => a.count.cmp(&b.count),
+        3 => a.down_bps.cmp(&b.down_bps),
+        4 => a.up_bps.cmp(&b.up_bps),
+        _ => a.remote_ip.cmp(&b.remote_ip),
+    }
+    .then_with(|| a.remote_ip.cmp(&b.remote_ip))
+    .then_with(|| a.remote_port.cmp(&b.remote_port))
+}
+
+fn compare_ip_process(a: &net::IpProcessGroup, b: &net::IpProcessGroup, column: i32) -> Ordering {
+    match column {
+        0 => a.remote_ip.cmp(&b.remote_ip),
+        1 => a.process_name.cmp(&b.process_name),
+        2 => a.count.cmp(&b.count),
+        3 => a.down_bps.cmp(&b.down_bps),
+        4 => a.up_bps.cmp(&b.up_bps),
+        _ => a.remote_ip.cmp(&b.remote_ip),
+    }
+    .then_with(|| a.remote_ip.cmp(&b.remote_ip))
+    .then_with(|| a.process_name.cmp(&b.process_name))
+}
+
+fn compare_ip_port_process(
+    a: &net::IpPortProcessGroup,
+    b: &net::IpPortProcessGroup,
+    column: i32,
+) -> Ordering {
+    match column {
+        0 => a.remote_ip.cmp(&b.remote_ip),
+        1 => a.remote_port.cmp(&b.remote_port),
+        2 => a.process_name.cmp(&b.process_name),
+        3 => a.count.cmp(&b.count),
+        4 => a.down_bps.cmp(&b.down_bps),
+        5 => a.up_bps.cmp(&b.up_bps),
+        _ => a.remote_ip.cmp(&b.remote_ip),
+    }
+    .then_with(|| a.remote_ip.cmp(&b.remote_ip))
+    .then_with(|| a.remote_port.cmp(&b.remote_port))
+    .then_with(|| a.process_name.cmp(&b.process_name))
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let ui = MainWindow::new()?;
     let tracker = Rc::new(RefCell::new(SpeedTracker::new()));
+    let sort_state = Rc::new(RefCell::new(SortState::default()));
     let etw_collector = Rc::new(match etw::EtwTrafficCollector::start() {
         Ok(collector) => Some(collector),
         Err(err) => {
@@ -131,11 +220,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &mut tracker.borrow_mut(),
         etw_collector.as_ref().as_ref(),
         etw_status,
+        *sort_state.borrow(),
     );
 
     let ui_weak = ui.as_weak();
     let tracker_refresh = tracker.clone();
     let etw_refresh = etw_collector.clone();
+    let sort_refresh = sort_state.clone();
     ui.on_refresh_requested(move || {
         let Some(ui) = ui_weak.upgrade() else {
             return;
@@ -151,12 +242,47 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             &mut tracker_refresh.borrow_mut(),
             etw_refresh.as_ref().as_ref(),
             status,
+            *sort_refresh.borrow(),
+        );
+    });
+
+    let ui_weak = ui.as_weak();
+    let tracker_sort = tracker.clone();
+    let etw_sort = etw_collector.clone();
+    let sort_for_callback = sort_state.clone();
+    ui.on_sort_requested(move |table, column| {
+        {
+            let mut sort = sort_for_callback.borrow_mut();
+            if sort.table == table && sort.column == column {
+                sort.ascending = !sort.ascending;
+            } else {
+                sort.table = table;
+                sort.column = column;
+                sort.ascending = true;
+            }
+        }
+
+        let Some(ui) = ui_weak.upgrade() else {
+            return;
+        };
+        let status = if etw_sort.is_some() {
+            None
+        } else {
+            Some("ETW 未启动，表格分组速度不可用")
+        };
+        refresh_ui(
+            &ui,
+            &mut tracker_sort.borrow_mut(),
+            etw_sort.as_ref().as_ref(),
+            status,
+            *sort_for_callback.borrow(),
         );
     });
 
     let ui_weak = ui.as_weak();
     let tracker_timer = tracker.clone();
     let etw_timer = etw_collector.clone();
+    let sort_timer = sort_state.clone();
     let timer = slint::Timer::default();
     timer.start(
         slint::TimerMode::Repeated,
@@ -173,6 +299,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &mut tracker_timer.borrow_mut(),
                     etw_timer.as_ref().as_ref(),
                     status,
+                    *sort_timer.borrow(),
                 );
             }
         },

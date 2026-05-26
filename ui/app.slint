@@ -54,7 +54,13 @@ component FlexCell inherits Rectangle {
     in property <bool> align-left: false;
     in property <brush> text-color: #e2e8f0;
     in property <int> stretch: 1;
+    callback clicked();
     horizontal-stretch: root.stretch;
+
+    TouchArea {
+        enabled: root.header;
+        clicked => { root.clicked(); }
+    }
 
     Text {
         width: parent.width;
@@ -80,12 +86,13 @@ component FiveColRow inherits HorizontalBox {
     in property <string> t5;
     in property <bool> header: false;
     in property <int> w2: 1;
+    callback column-clicked(int);
 
-    FlexCell { text: root.t1; header: root.header; align-left: true; stretch: 4; }
-    FlexCell { text: root.t2; header: root.header; stretch: root.w2; }
-    FlexCell { text: root.t3; header: root.header; stretch: 1; }
-    FlexCell { text: root.t4; header: root.header; text-color: #38bdf8; stretch: 2; }
-    FlexCell { text: root.t5; header: root.header; text-color: #34d399; stretch: 2; }
+    FlexCell { text: root.t1; header: root.header; align-left: true; stretch: 4; clicked => { root.column-clicked(0); } }
+    FlexCell { text: root.t2; header: root.header; stretch: root.w2; clicked => { root.column-clicked(1); } }
+    FlexCell { text: root.t3; header: root.header; stretch: 1; clicked => { root.column-clicked(2); } }
+    FlexCell { text: root.t4; header: root.header; text-color: #38bdf8; stretch: 2; clicked => { root.column-clicked(3); } }
+    FlexCell { text: root.t5; header: root.header; text-color: #34d399; stretch: 2; clicked => { root.column-clicked(4); } }
 }
 
 component SixColRow inherits HorizontalBox {
@@ -99,13 +106,14 @@ component SixColRow inherits HorizontalBox {
     in property <string> t5;
     in property <string> t6;
     in property <bool> header: false;
+    callback column-clicked(int);
 
-    FlexCell { text: root.t1; header: root.header; align-left: true; stretch: 4; }
-    FlexCell { text: root.t2; header: root.header; stretch: 1; }
-    FlexCell { text: root.t3; header: root.header; stretch: 3; }
-    FlexCell { text: root.t4; header: root.header; stretch: 1; }
-    FlexCell { text: root.t5; header: root.header; text-color: #38bdf8; stretch: 2; }
-    FlexCell { text: root.t6; header: root.header; text-color: #34d399; stretch: 2; }
+    FlexCell { text: root.t1; header: root.header; align-left: true; stretch: 4; clicked => { root.column-clicked(0); } }
+    FlexCell { text: root.t2; header: root.header; stretch: 1; clicked => { root.column-clicked(1); } }
+    FlexCell { text: root.t3; header: root.header; stretch: 3; clicked => { root.column-clicked(2); } }
+    FlexCell { text: root.t4; header: root.header; stretch: 1; clicked => { root.column-clicked(3); } }
+    FlexCell { text: root.t5; header: root.header; text-color: #38bdf8; stretch: 2; clicked => { root.column-clicked(4); } }
+    FlexCell { text: root.t6; header: root.header; text-color: #34d399; stretch: 2; clicked => { root.column-clicked(5); } }
 }
 
 component FiveColHeader inherits Rectangle {
@@ -115,6 +123,7 @@ component FiveColHeader inherits Rectangle {
     in property <string> c4;
     in property <string> c5;
     in property <int> w2: 1;
+    callback column-clicked(int);
     width: 100%;
     height: 40px;
     background: #1e293b;
@@ -127,6 +136,7 @@ component FiveColHeader inherits Rectangle {
         t3: root.c3;
         t4: root.c4;
         t5: root.c5;
+        column-clicked(column) => { root.column-clicked(column); }
     }
 }
 
@@ -137,6 +147,7 @@ component SixColHeader inherits Rectangle {
     in property <string> c4;
     in property <string> c5;
     in property <string> c6;
+    callback column-clicked(int);
     width: 100%;
     height: 40px;
     background: #1e293b;
@@ -149,6 +160,7 @@ component SixColHeader inherits Rectangle {
         t4: root.c4;
         t5: root.c5;
         t6: root.c6;
+        column-clicked(column) => { root.column-clicked(column); }
     }
 }
 
@@ -222,6 +234,7 @@ component LineChartPanel inherits Rectangle {
 
 component IpPortTab inherits Rectangle {
     in property <[IpPortRow]> rows;
+    callback sort-requested(int);
     background: #0f172a;
     border-radius: 8px;
 
@@ -235,6 +248,7 @@ component IpPortTab inherits Rectangle {
             c3: "连接数";
             c4: "下载";
             c5: "上传";
+            column-clicked(column) => { root.sort-requested(column); }
         }
         ListView {
             width: 100%;
@@ -258,6 +272,7 @@ component IpPortTab inherits Rectangle {
 
 component IpPortProcessTab inherits Rectangle {
     in property <[IpPortProcessRow]> rows;
+    callback sort-requested(int);
     background: #0f172a;
     border-radius: 8px;
 
@@ -272,6 +287,7 @@ component IpPortProcessTab inherits Rectangle {
             c4: "连接数";
             c5: "下载";
             c6: "上传";
+            column-clicked(column) => { root.sort-requested(column); }
         }
         ListView {
             width: 100%;
@@ -296,6 +312,7 @@ component IpPortProcessTab inherits Rectangle {
 
 component IpProcessTab inherits Rectangle {
     in property <[IpProcessRow]> rows;
+    callback sort-requested(int);
     background: #0f172a;
     border-radius: 8px;
 
@@ -310,6 +327,7 @@ component IpProcessTab inherits Rectangle {
             c4: "下载";
             c5: "上传";
             w2: 3;
+            column-clicked(column) => { root.sort-requested(column); }
         }
         ListView {
             width: 100%;
@@ -352,6 +370,7 @@ export component MainWindow inherits Window {
     in property <string> last-updated: "";
 
     callback refresh-requested();
+    callback sort-requested(int, int);
 
     VerticalBox {
         width: 100%;
@@ -444,6 +463,7 @@ export component MainWindow inherits Window {
                 IpPortTab {
                     width: 100%;
                     rows: root.ip-port-rows;
+                    sort-requested(column) => { root.sort-requested(0, column); }
                 }
             }
 
@@ -452,6 +472,7 @@ export component MainWindow inherits Window {
                 IpProcessTab {
                     width: 100%;
                     rows: root.ip-process-rows;
+                    sort-requested(column) => { root.sort-requested(1, column); }
                 }
             }
 
@@ -460,6 +481,7 @@ export component MainWindow inherits Window {
                 IpPortProcessTab {
                     width: 100%;
                     rows: root.ip-port-process-rows;
+                    sort-requested(column) => { root.sort-requested(2, column); }
                 }
             }
         }
